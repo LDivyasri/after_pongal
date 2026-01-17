@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator, StatusBar, Alert, ScrollView, Modal, TextInput, Platform, Image, KeyboardAvoidingView
+    View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator, StatusBar, Alert, ScrollView, Modal, TextInput, Platform, Image, KeyboardAvoidingView, useWindowDimensions
 } from 'react-native';
 import ConfirmationModal from '../components/ConfirmationModal';
 import ImageViewerModal from '../components/ImageViewerModal';
@@ -219,6 +219,8 @@ const ChatAudioItem = ({ uri, isMe }: { uri: string, isMe: boolean }) => {
 const StageProgressScreen = ({ route, navigation }: any) => {
     const { phaseId, taskId, siteName } = route.params || {};
     const { user } = useContext(AuthContext);
+    const { width } = useWindowDimensions();
+    const isSmallScreen = width < 380;
 
     const [confirmModal, setConfirmModal] = useState({
         visible: false,
@@ -1032,13 +1034,13 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                                 style={{ backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}
                                 onPress={handleApprove}
                             >
-                                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12 }}>✓ Approve</Text>
+                                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12 }}>✓ {isSmallScreen ? '' : 'Approve'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={{ backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}
                                 onPress={handleReject}
                             >
-                                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12 }}>✗ Changes</Text>
+                                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12 }}>✗ {isSmallScreen ? '' : 'Changes'}</Text>
                             </TouchableOpacity>
                         </View>
                     ) :
@@ -1058,7 +1060,7 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                             >
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                     <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                                    <Text style={{ color: '#059669', fontWeight: '700', fontSize: 12 }}>Approved</Text>
+                                    {!isSmallScreen && <Text style={{ color: '#059669', fontWeight: '700', fontSize: 12 }}>Approved</Text>}
                                 </View>
                             </TouchableOpacity>
                         ) :
@@ -1076,7 +1078,7 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                                     }}
                                 >
                                     <Text style={{ color: '#6B7280', fontWeight: '700', fontSize: 12 }}>
-                                        Waiting for Approval
+                                        {isSmallScreen ? 'Waiting...' : 'Waiting for Approval'}
                                     </Text>
                                 </TouchableOpacity>
                             ) :
@@ -1094,7 +1096,7 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                                         disabled={submitLoading}
                                     >
                                         <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12 }}>
-                                            {submitLoading ? 'Submitting...' : 'Mark Complete'}
+                                            {submitLoading ? '...' : (isSmallScreen ? 'Done' : 'Mark Complete')}
                                         </Text>
                                     </TouchableOpacity>
                                 ) :
@@ -1580,6 +1582,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F9FAFB',
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
     loadingContainer: {
         flex: 1,
@@ -1797,7 +1800,7 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     modalContent: {
-        width: '100%',
+        width: '90%',
         maxWidth: 400,
         backgroundColor: '#FFF',
         borderRadius: 16,

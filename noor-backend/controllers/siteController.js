@@ -101,27 +101,39 @@ exports.createSite = async (req, res) => {
 
         const siteId = result.insertId;
 
-        // Fetch all templates
-        const [templates] = await db.query('SELECT * FROM task_templates ORDER BY order_num');
+        // Load the comprehensive construction template
+        const CONSTRUCTION_TEMPLATE = require('../templates/construction-template');
 
-        // Group templates by phase_name to create phases first
-        const phaseMap = new Map(); // phase_name -> phase_id
-
-        for (const template of templates) {
-            if (!phaseMap.has(template.phase_name)) {
-                const [phaseResult] = await db.query(
-                    'INSERT INTO phases (site_id, name, order_num) VALUES (?, ?, ?)',
-                    [siteId, template.phase_name, phaseMap.size + 1]
-                );
-                phaseMap.set(template.phase_name, phaseResult.insertId);
-            }
-
-            // Create task linked to phase
-            await db.query(
-                `INSERT INTO tasks (site_id, phase_id, name, status) 
-                 VALUES (?, ?, ?, 'Not Started')`,
-                [siteId, phaseMap.get(template.phase_name), template.task_name]
+        // Create phases and tasks from template
+        for (const phaseTemplate of CONSTRUCTION_TEMPLATE) {
+            // Create the phase (construction stage)
+            const [phaseResult] = await db.query(
+                `INSERT INTO phases (
+                    site_id, name, order_num, budget, 
+                    floor_number, floor_name, serial_number
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    siteId,
+                    phaseTemplate.stageName,
+                    phaseTemplate.serialNumber,
+                    0, // Default budget
+                    phaseTemplate.floorNumber,
+                    phaseTemplate.floorName,
+                    phaseTemplate.serialNumber
+                ]
             );
+
+            const phaseId = phaseResult.insertId;
+
+            // Create all tasks for this phase
+            let taskOrder = 1;
+            for (const taskName of phaseTemplate.tasks) {
+                await db.query(
+                    `INSERT INTO tasks (site_id, phase_id, name, status, order_index) 
+                     VALUES (?, ?, ?, 'Not Started', ?)`,
+                    [siteId, phaseId, taskName, taskOrder++]
+                );
+            }
         }
 
         // Assign employees to site
@@ -131,7 +143,7 @@ exports.createSite = async (req, res) => {
         }
 
         res.status(201).json({
-            message: 'Site created with predefined tasks',
+            message: 'Project created with complete construction workflow',
             site: {
                 id: siteId, name, location, startDate, endDate, budget,
                 clientName, clientEmail, clientPhone, status: 'active'
@@ -142,6 +154,7 @@ exports.createSite = async (req, res) => {
         res.status(500).json({ message: 'Error creating site' });
     }
 };
+
 
 // Get site with phases (Admin)
 exports.getSiteWithPhases = async (req, res) => {
@@ -159,7 +172,7 @@ exports.getSiteWithPhases = async (req, res) => {
             FROM phases p
             LEFT JOIN employees e ON p.assigned_to = e.id
             WHERE p.site_id = ?
-            ORDER BY p.order_num
+            ORDER BY p.floor_number ASC, p.serial_number ASC
         `, [id]);
 
         const [tasks] = await db.query(`
@@ -182,7 +195,7 @@ exports.getSiteWithPhases = async (req, res) => {
             LEFT JOIN employees e ON t.employee_id = e.id
             LEFT JOIN phases p ON t.phase_id = p.id
             WHERE t.site_id = ?
-            ORDER BY t.created_at DESC
+            ORDER BY t.order_index ASC, t.created_at ASC
         `, [id]);
 
         res.json({ site: sites[0], phases, tasks });
@@ -198,10 +211,10 @@ exports.getPhases = async (req, res) => {
         const { siteId } = req.params;
         const [phases] = await db.query(`
             SELECT p.*,
-                   COALESCE((SELECT SUM(amount) FROM transactions WHERE phase_id = p.id AND type = 'OUT'), 0) as used_amount
+                   COALESCE((SELECT SUM(amount) FROM transactions WHERE phase_id = p.id AND TYPE = 'OUT'), 0) as used_amount
             FROM phases p
             WHERE p.site_id = ?
-            ORDER BY p.order_num
+            ORDER BY p.floor_number ASC, p.serial_number ASC
         `, [siteId]);
         res.json({ phases });
     } catch (error) {
@@ -212,8 +225,9 @@ exports.getPhases = async (req, res) => {
 
 // Helper to re-index all phases for a site to be strictly sequential
 const reindexPhases = async (siteId) => {
+    // Keep internal order_num consistent just in case, but primary sort is serial_number
     const [phases] = await db.query(
-        'SELECT id FROM phases WHERE site_id = ? ORDER BY order_num ASC',
+        'SELECT id FROM phases WHERE site_id = ? ORDER BY serial_number ASC',
         [siteId]
     );
 
@@ -225,25 +239,40 @@ const reindexPhases = async (siteId) => {
 // Add custom phase with insertion logic
 exports.addPhase = async (req, res) => {
     try {
-        const { siteId, name, orderNum, budget } = req.body;
+        const { siteId, name, orderNum, budget, floorNumber, floorName, serialNumber } = req.body;
         const requestedOrder = parseInt(orderNum) || 1;
+        const fNumber = parseInt(floorNumber) || 0;
+        const fName = floorName || "Ground Floor";
+        const sNumber = parseInt(serialNumber);
 
-        // 1. Shift existing phases
+        if (!sNumber) {
+            return res.status(400).json({ message: 'Serial Number is required' });
+        }
+
+        // Check for duplicate serial number
+        const [existing] = await db.query('SELECT id FROM phases WHERE site_id = ? AND serial_number = ?', [siteId, sNumber]);
+
+        if (existing.length > 0) {
+            // INSERTION LOGIC: Shift existing phases down
+            console.log(`[addPhase] Serial number ${sNumber} exists. Shifting subsequent phases...`);
+
+            // Shift all phases with serial_number >= sNumber by +1
+            await db.query(
+                'UPDATE phases SET serial_number = serial_number + 1 WHERE site_id = ? AND serial_number >= ?',
+                [siteId, sNumber]
+            );
+        }
+
+        // Insert new phase
         await db.query(
-            'UPDATE phases SET order_num = order_num + 1 WHERE site_id = ? AND order_num >= ?',
-            [siteId, requestedOrder]
+            'INSERT INTO phases (site_id, name, order_num, budget, floor_number, floor_name, serial_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [siteId, name, requestedOrder, budget || 0, fNumber, fName, sNumber]
         );
 
-        // 2. Insert new phase
-        await db.query(
-            'INSERT INTO phases (site_id, name, order_num, budget) VALUES (?, ?, ?, ?)',
-            [siteId, name, requestedOrder, budget || 0]
-        );
-
-        // 3. Re-index to ensure continuous sequence
+        // Re-index internal order just to keep it clean, though serial_number drives UI
         await reindexPhases(siteId);
 
-        res.status(201).json({ message: 'Stage added and re-indexed' });
+        res.status(201).json({ message: 'Stage added successfully' });
     } catch (error) {
         console.error('Error adding phase:', error);
         res.status(500).json({ message: 'Error adding phase' });
@@ -251,14 +280,36 @@ exports.addPhase = async (req, res) => {
 };
 
 // Update Phase
+// Update Phase
 exports.updatePhase = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, order_num, budget } = req.body;
+        const { name, order_num, budget, serialNumber, floorNumber, floorName } = req.body;
+
+        const sNumber = parseInt(serialNumber);
+        const fNumber = parseInt(floorNumber);
+        const fName = floorName || "Ground Floor";
+
+        // Validate Serial Number if provided
+        if (sNumber) {
+            // Get site_id for this phase
+            const [phase] = await db.query('SELECT site_id FROM phases WHERE id = ?', [id]);
+            if (phase.length > 0) {
+                const siteId = phase[0].site_id;
+                // Check if another phase has this serial number
+                const [existing] = await db.query(
+                    'SELECT id FROM phases WHERE site_id = ? AND serial_number = ? AND id != ?',
+                    [siteId, sNumber, id]
+                );
+                if (existing.length > 0) {
+                    return res.status(400).json({ message: 'Serial Number already exists for this project' });
+                }
+            }
+        }
 
         await db.query(
-            'UPDATE phases SET name = ?, order_num = ?, budget = ? WHERE id = ?',
-            [name, order_num, budget || 0, id]
+            'UPDATE phases SET name = ?, order_num = ?, budget = ?, serial_number = ?, floor_number = ?, floor_name = ? WHERE id = ?',
+            [name, order_num, budget || 0, sNumber, fNumber, fName, id]
         );
 
         res.json({ message: 'Phase updated successfully' });
@@ -358,16 +409,65 @@ exports.getAllTasks = async (req, res) => {
 // Create custom task (Admin only)
 exports.addTask = async (req, res) => {
     try {
-        const { siteId, phaseId, name } = req.body;
+        const { siteId, phaseId, name, orderIndex } = req.body;
         const isAdmin = req.user.role === 'Admin' || req.user.role === 'admin';
 
         if (!isAdmin) {
             return res.status(403).json({ message: 'Only admin can add tasks' });
         }
 
+        let nextOrder;
+
+        if (orderIndex) {
+            const desiredOrder = parseInt(orderIndex);
+            
+            // Check if order index exists in this phase
+            const [existing] = await db.query(
+                'SELECT id FROM tasks WHERE phase_id = ? AND order_index = ?', 
+                [phaseId, desiredOrder]
+            );
+
+            if (existing.length > 0) {
+                // Happy path: Index exists, just shift
+                await db.query(
+                    'UPDATE tasks SET order_index = order_index + 1 WHERE phase_id = ? AND order_index >= ?',
+                    [phaseId, desiredOrder]
+                );
+            } else {
+                // Edge case: Index doesn't exist. 
+                // Could be a gap, or all indexes are 0 (broken project).
+                // Let's check if we have enough tasks to look suspicious.
+                const [countResult] = await db.query('SELECT COUNT(*) as count FROM tasks WHERE phase_id = ?', [phaseId]);
+                const totalTasks = countResult[0].count;
+
+                if (totalTasks >= desiredOrder) {
+                    // We have tasks but the index is missing? 
+                    // This implies broken ordering (e.g. all 0s). 
+                    // AUTO-HEAL: Re-index everything by ID/Created to restore base order.
+                    console.log(`[addTask] Detecting broken order for phase ${phaseId}. Auto-healing...`);
+                    
+                    const [allTasks] = await db.query('SELECT id FROM tasks WHERE phase_id = ? ORDER BY order_index ASC, id ASC', [phaseId]);
+                    for (let i = 0; i < allTasks.length; i++) {
+                        await db.query('UPDATE tasks SET order_index = ? WHERE id = ?', [i + 1, allTasks[i].id]);
+                    }
+
+                    // Now shift after healing
+                    await db.query(
+                        'UPDATE tasks SET order_index = order_index + 1 WHERE phase_id = ? AND order_index >= ?',
+                        [phaseId, desiredOrder]
+                    );
+                }
+            }
+            nextOrder = desiredOrder;
+        } else {
+            // Append to end
+            const [maxOrder] = await db.query('SELECT MAX(order_index) as max_order FROM tasks WHERE phase_id = ?', [phaseId]);
+            nextOrder = (maxOrder[0].max_order || 0) + 1;
+        }
+
         const [result] = await db.query(
-            'INSERT INTO tasks (site_id, phase_id, name, status) VALUES (?, ?, ?, "Not Started")',
-            [siteId, phaseId, name]
+            'INSERT INTO tasks (site_id, phase_id, name, status, order_index) VALUES (?, ?, ?, "Not Started", ?)',
+            [siteId, phaseId, name, nextOrder]
         );
 
         res.status(201).json({ message: 'Task added successfully', taskId: result.insertId });
@@ -501,6 +601,24 @@ exports.deleteTask = async (req, res) => {
     } catch (error) {
         console.error('Error deleting task:', error);
         res.status(500).json({ message: 'Error deleting task' });
+    }
+};
+
+// Reorder tasks
+exports.reorderTasks = async (req, res) => {
+    try {
+        const { tasks } = req.body; // Array of { id, order_index }
+
+        // Use a transaction or batch update
+        // Simple loop for now as it's usually small batch
+        for (const task of tasks) {
+            await db.query('UPDATE tasks SET order_index = ? WHERE id = ?', [task.order_index, task.id]);
+        }
+
+        res.json({ message: 'Tasks reordered successfully' });
+    } catch (error) {
+        console.error('Error reordering tasks:', error);
+        res.status(500).json({ message: 'Error reordering tasks' });
     }
 };
 

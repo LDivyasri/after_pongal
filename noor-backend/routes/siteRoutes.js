@@ -29,6 +29,7 @@ router.delete('/phases/:id', verifyToken, siteController.deletePhase);
 router.get('/tasks', verifyToken, siteController.getAllTasks);
 router.post('/tasks', verifyToken, siteController.addTask);
 router.put('/tasks/:id', verifyToken, taskController.updateTask);
+router.put('/tasks/reorder', verifyToken, siteController.reorderTasks);
 router.delete('/tasks/:id', verifyToken, siteController.deleteTask);
 
 // Employee routes

@@ -31,6 +31,7 @@ import { useNavigation, useIsFocused } from "@react-navigation/native";
 import StageProgressScreen from "./StageProgressScreen";
 import ProjectTransactions from "../components/ProjectTransactions";
 import * as DocumentPicker from "expo-document-picker";
+import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator, RenderItemParams } from "react-native-draggable-flatlist";
 
 declare const window: any;
 
@@ -578,6 +579,244 @@ interface DashboardStats {
   };
 }
 
+// Helper to generate clean, professional HTML for the report
+const generateProjectReportHTML = (project: any, client: any, stats: any, phases: any[]) => {
+  const date = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  return `
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+        <style>
+          body { 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            padding: 40px; 
+            color: #333; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: #fff;
+          }
+          .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 40px; 
+            border-bottom: 2px solid #8B0000; 
+            padding-bottom: 20px; 
+          }
+          .brand-col { flex: 1; }
+          .brand-name { color: #8B0000; font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+          .report-title { font-size: 16px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+          .meta-col { text-align: right; }
+          .meta-date { font-size: 14px; color: #999; }
+          
+          .section { margin-bottom: 40px; }
+          .section-header { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 20px; 
+          }
+          .section-icon { 
+            color: #8B0000; 
+            font-size: 18px; 
+            margin-right: 10px; 
+          }
+          .section-title { 
+            font-size: 18px; 
+            color: #8B0000; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+          }
+          
+          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; }
+          
+          .info-card { 
+            background: #f9fafb; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border: 1px solid #e5e7eb; 
+          }
+          .info-label { 
+            font-size: 11px; 
+            color: #6b7280; 
+            text-transform: uppercase; 
+            margin-bottom: 5px; 
+            font-weight: 600;
+          }
+          .info-value { 
+            font-size: 15px; 
+            font-weight: 600; 
+            color: #111827; 
+          }
+          
+          .status-summary { 
+            display: flex; 
+            gap: 20px; 
+            background: #fff; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 12px; 
+            padding: 25px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+          }
+          .status-metric { flex: 1; text-align: center; border-right: 1px solid #f3f4f6; }
+          .status-metric:last-child { border-right: none; }
+          .metric-value { font-size: 36px; font-weight: 800; color: #8B0000; margin-bottom: 5px; }
+          .metric-label { font-size: 13px; color: #6b7280; text-transform: uppercase; font-weight: 600; }
+          
+          .task-stats {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+          }
+          .task-stat-box {
+            flex: 1;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+          }
+          .ts-completed { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+          .ts-pending { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+          .ts-value { font-size: 24px; font-weight: bold; margin-bottom: 4px; }
+          .ts-label { font-size: 12px; font-weight: 600; text-transform: uppercase; opacity: 0.8; }
+
+          .footer { 
+            margin-top: 60px; 
+            text-align: center; 
+            color: #9ca3af; 
+            font-size: 12px; 
+            border-top: 1px solid #f3f4f6; 
+            padding-top: 30px; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand-col">
+            <div class="brand-name">Noor Construction</div>
+            <div class="report-title">Project Status Report</div>
+          </div>
+          <div class="meta-col">
+            <div class="meta-date">${date}</div>
+          </div>
+        </div>
+
+        <!-- 1. PROJECT INFO -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-icon">🏢</div>
+            <div class="section-title">Project Information</div>
+          </div>
+          <div class="grid-2">
+            <div class="info-card">
+              <div class="info-label">Project Name</div>
+              <div class="info-value">${project.name}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Site Location</div>
+              <div class="info-value">${project.address}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Client Name</div>
+              <div class="info-value">${client.name}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Phone Number</div>
+              <div class="info-value">${client.phone || '-'}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Email Address</div>
+              <div class="info-value">${client.email || '-'}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Start Date</div>
+              <div class="info-value">${project.startDate || '-'}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">End Date</div>
+              <div class="info-value">${project.endDate || '-'}</div>
+            </div>
+            <div class="info-card">
+              <div class="info-label">Duration</div>
+              <div class="info-value">${project.durationDays} Days</div>
+            </div>
+             <div class="info-card">
+              <div class="info-label">Days Remaining</div>
+              <div class="info-value">${stats.daysRemaining} Days</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. STATUS SUMMARY (Mini Dashboard) -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-icon">📊</div>
+            <div class="section-title">Project Status Report</div>
+          </div>
+          
+          <div class="status-summary">
+            <div class="status-metric">
+              <div class="metric-value">${stats.progress}%</div>
+              <div class="metric-label">Overall Progress</div>
+            </div>
+             <div class="status-metric">
+              <div class="metric-value">${stats.timelineProgress}%</div>
+              <div class="metric-label">Timeline Progress</div>
+            </div>
+            <div class="status-metric">
+              <div class="metric-value">${phases.length}</div>
+              <div class="metric-label">Total Stages</div>
+            </div>
+          </div>
+
+          <div class="task-stats">
+             <div class="task-stat-box">
+              <div class="ts-value">${stats.totalTasks}</div>
+              <div class="ts-label">Total Tasks</div>
+            </div>
+            <div class="task-stat-box ts-completed">
+              <div class="ts-value">${stats.completedTasks}</div>
+              <div class="ts-label">Completed</div>
+            </div>
+            <div class="task-stat-box ts-pending">
+              <div class="ts-value">${stats.pendingTasks}</div>
+              <div class="ts-label">Pending</div>
+            </div>
+          </div>
+          
+          <!-- Allocation Summary -->
+          <div style="margin-top: 20px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px;">
+             <div style="font-size: 14px; color: #8B0000; font-weight: bold; margin-bottom: 15px; text-transform: uppercase;">
+                Allocation Summary
+             </div>
+             <div style="display: flex; justify-content: space-between; text-align: center;">
+                <div style="flex: 1;">
+                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">TOTAL BUDGET</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #111827;">${stats.budget}</div>
+                </div>
+                 <div style="flex: 1; border-left: 1px solid #f3f4f6;">
+                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">ALLOCATED</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #166534;">${stats.allocated}</div>
+                </div>
+                 <div style="flex: 1; border-left: 1px solid #f3f4f6;">
+                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">REMAINING</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #B91C1C;">${stats.remaining}</div>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          Generated automatically by Noor Construction App • Reliable & Transparent
+        </div>
+      </body>
+    </html>
+  `;
+};
+
 const AdminDashboardScreen = () => {
   const { user, logout } = useContext(AuthContext);
   const handleLogout = () => {
@@ -600,6 +839,213 @@ const AdminDashboardScreen = () => {
   const [approvalTab, setApprovalTab] = useState<"Tasks" | "Materials">(
     "Tasks"
   );
+
+  // Floor-Based Stage Creation State
+  const [addStageModalVisible, setAddStageModalVisible] = useState(false);
+  const [newStageFloor, setNewStageFloor] = useState("");
+  const [newStageName, setNewStageName] = useState("");
+
+  // Dynamic Floors Customization
+  const [customFloorInputVisible, setCustomFloorInputVisible] = useState(false);
+  const [customFloorInput, setCustomFloorInput] = useState("");
+
+  const INITIAL_FLOORS = ["Basement", "Ground Floor", "First Floor", "Second Floor", "Roof / Terrace"];
+  const INITIAL_FLOOR_MAP: Record<string, number> = {
+    "Basement": -1,
+    "Ground Floor": 0,
+    "First Floor": 1,
+    "Second Floor": 2,
+    "Roof / Terrace": 999
+  };
+
+  // Serial Number State
+  const [newStageSerialNumber, setNewStageSerialNumber] = useState("");
+
+  // Edit Phase State
+  const [editPhaseModalVisible, setEditPhaseModalVisible] = useState(false);
+  const [editingPhaseId, setEditingPhaseId] = useState<number | null>(null);
+  const [editingPhaseName, setEditingPhaseName] = useState("");
+  const [editingPhaseFloor, setEditingPhaseFloor] = useState("");
+  const [editingPhaseSerialNumber, setEditingPhaseSerialNumber] = useState("");
+  const [editCustomFloorInputVisible, setEditCustomFloorInputVisible] = useState(false);
+  const [editCustomFloorInput, setEditCustomFloorInput] = useState("");
+
+  const [availableFloors, setAvailableFloors] = useState<string[]>(INITIAL_FLOORS);
+  const [floorMap, setFloorMap] = useState<Record<string, number>>(INITIAL_FLOOR_MAP);
+
+  // Stage Options Menu State
+  const [stageOptionsVisible, setStageOptionsVisible] = useState(false);
+  const [selectedStageOption, setSelectedStageOption] = useState<{ id: number; name: string } | null>(null);
+
+  const getFloorNameFromNumber = (num: number) => {
+    const smallNumbers = ["Ground", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"];
+    if (num <= 10 && num >= 0) return `${smallNumbers[num]} Floor`;
+
+    // Fallback for larger numbers
+    const j = num % 10,
+      k = num % 100;
+    if (j == 1 && k != 11) {
+      return num + "st Floor";
+    }
+    if (j == 2 && k != 12) {
+      return num + "nd Floor";
+    }
+    if (j == 3 && k != 13) {
+      return num + "rd Floor";
+    }
+    return num + "th Floor";
+  };
+
+  const handleAddCustomFloor = () => {
+    const num = parseInt(customFloorInput);
+    if (!isNaN(num)) {
+      const name = getFloorNameFromNumber(num);
+
+      // Update Floors List if not exists
+      if (!availableFloors.includes(name)) {
+        // Find correct insertion index based on number (simple sort for now or just append)
+        // Ideally we sort availableFloors by their value in floorMap
+        const newMap = { ...floorMap, [name]: num };
+        setFloorMap(newMap);
+
+        const newFloors = [...availableFloors, name].sort((a, b) => {
+          return (newMap[a] || 0) - (newMap[b] || 0);
+        });
+        setAvailableFloors(newFloors);
+      }
+
+      setNewStageFloor(name);
+      setCustomFloorInputVisible(false);
+      setCustomFloorInput("");
+    }
+  };
+
+  const handleAddNewStage = async () => {
+    if (!newStageFloor || !newStageName) {
+      showToast("Please select a floor and enter a stage name", "error");
+      return;
+    }
+
+    const serialNum = parseInt(newStageSerialNumber);
+    if (!newStageSerialNumber || isNaN(serialNum)) {
+      showToast("Please enter a valid numeric Serial Number", "error");
+      return;
+    }
+
+    if (!selectedSite) {
+      showToast("No project selected", "error");
+      return;
+    }
+
+    try {
+      const floorNum = floorMap[newStageFloor] !== undefined ? floorMap[newStageFloor] : 0;
+
+      console.log('[handleAddNewStage] Sending request:', {
+        siteId: selectedSite.id,
+        name: newStageName,
+        floorName: newStageFloor,
+        floorNumber: floorNum,
+        budget: 0,
+        orderNum: 999,
+        serialNumber: serialNum
+      });
+
+      const response = await api.post("/phases", {
+        siteId: selectedSite.id,
+        name: newStageName,
+        floorName: newStageFloor,
+        floorNumber: floorNum,
+        budget: 0,
+        orderNum: 999,
+        serialNumber: serialNum
+      });
+
+      console.log('[handleAddNewStage] Response:', response.data);
+
+      showToast("Stage added successfully", "success");
+      setAddStageModalVisible(false);
+      setNewStageName("");
+      setNewStageFloor("");
+      setNewStageSerialNumber("");
+
+      // Refresh project details
+      await fetchProjectDetails(selectedSite.id);
+    } catch (error: any) {
+      console.error('[handleAddNewStage] Error:', error);
+      const errorMessage = error.response?.data?.message || "Failed to add stage";
+      showToast(errorMessage, "error");
+    }
+  };
+
+  const handleEditAddCustomFloor = () => {
+    const num = parseInt(editCustomFloorInput);
+    if (!isNaN(num)) {
+      const name = getFloorNameFromNumber(num);
+      if (!availableFloors.includes(name)) {
+        const newMap = { ...floorMap, [name]: num };
+        setFloorMap(newMap);
+        const newFloors = [...availableFloors, name].sort((a, b) => {
+          return (newMap[a] || 0) - (newMap[b] || 0);
+        });
+        setAvailableFloors(newFloors);
+      }
+      setEditingPhaseFloor(name);
+      setEditCustomFloorInputVisible(false);
+      setEditCustomFloorInput("");
+    }
+  };
+
+  const handleUpdatePhase = async () => {
+    if (!editingPhaseFloor || !editingPhaseName) {
+      Alert.alert("Error", "Please select a floor and enter a stage name");
+      return;
+    }
+
+    const serialNum = parseInt(editingPhaseSerialNumber);
+    if (!editingPhaseSerialNumber || isNaN(serialNum)) {
+      Alert.alert("Error", "Please enter a valid numeric Serial Number");
+      return;
+    }
+
+    if (!editingPhaseId) return;
+
+    try {
+      const floorNum = floorMap[editingPhaseFloor] !== undefined ? floorMap[editingPhaseFloor] : 0;
+
+      await api.put(`/phases/${editingPhaseId}`, {
+        name: editingPhaseName,
+        floorName: editingPhaseFloor,
+        floorNumber: floorNum,
+        order_num: 999,
+        budget: 0,
+        serialNumber: serialNum
+      });
+
+      showToast("Stage updated successfully", "success");
+      setEditPhaseModalVisible(false);
+      setEditingPhaseId(null);
+      setEditingPhaseName("");
+      setEditingPhaseFloor("");
+      setEditingPhaseSerialNumber("");
+
+      if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
+    } catch (error: any) {
+      console.error(error);
+      const errorMsg = error.response?.data?.message || "Failed to update stage";
+      Alert.alert("Error", errorMsg);
+    }
+  };
+
+  const handleEditStage = (phase: any) => {
+    // Populate edit modal with current phase data
+    setEditingPhaseId(phase.id);
+    setEditingPhaseName(phase.name || "");
+    setEditingPhaseFloor(phase.floor_name || "Ground Floor");
+    setEditingPhaseSerialNumber(String(phase.serial_number || 1));
+    setEditPhaseModalVisible(true);
+    setStageOptionsVisible(false);
+  };
+
 
   const fetchApprovals = async () => {
     setApprovalLoading(true);
@@ -637,6 +1083,79 @@ const AdminDashboardScreen = () => {
   // So there IS an approval endpoint? I need to find it. I suspect it's `completeTask` or similar.
   // Let's assume standard update for now, but I better check taskController.js.
 
+  // Handle PDF Generation and Sharing
+  const handleShareProjectPDF = async () => {
+    try {
+      // 1. Calculate Stats
+      const totalTasks = projectTasks.length;
+      const completedTasks = projectTasks.filter((t: any) => t.status === 'Completed' || t.status === 'completed').length;
+      const pendingTasks = totalTasks - completedTasks;
+      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      // Calculate Days Remaining
+      const parseDate = (dStr: string) => {
+        if (!dStr) return null;
+        const [day, month, year] = dStr.split("/");
+        return new Date(Number(year), Number(month) - 1, Number(day));
+      };
+      const end = parseDate(formData.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      let daysRemaining = 0;
+      if (end) {
+        daysRemaining = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 3600 * 24)));
+      }
+
+      const clientInfo = {
+        name: formData.clientName,
+        phone: formData.clientPhone,
+        email: formData.clientEmail
+      };
+
+      const projectInfo = {
+        name: formData.name,
+        address: formData.address,
+        startDate: formData.startDate,
+        endDate: formData.endDate
+      };
+
+      const statsInfo = {
+        progress,
+        completedTasks,
+        pendingTasks,
+        totalTasks,
+        daysRemaining
+      };
+
+      // 2. Generate HTML
+      const html = generateProjectReportHTML(projectInfo, clientInfo, statsInfo, settingsPhases);
+
+      // 3. Print to PDF
+      const { uri } = await Print.printToFileAsync({ html });
+
+      // 4. Share via WhatsApp Flow (System Share Sheet)
+      // Note: We cannot force WhatsApp directly with a file attachment via URL scheme on all devices.
+      // The standard way is using Sharing.shareAsync which opens the system sheet, where the user selects WhatsApp.
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Share Project Status Report',
+          UTI: 'com.adobe.pdf'
+        });
+
+        // Optional: Track in backend here
+        // await api.post('/project/share-record', { ... });
+        showToast("PDF Generated & Ready to Share", "success");
+      } else {
+        Alert.alert("Error", "Sharing is not available on this device");
+      }
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      Alert.alert("Error", "Failed to generate project report");
+    }
+  };
+
   const [expandedPhaseIds, setExpandedPhaseIds] = useState<number[]>([]);
 
   // Confirmation Modal State
@@ -663,13 +1182,6 @@ const AdminDashboardScreen = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationDropdownVisible, setNotificationDropdownVisible] =
     useState(false);
-
-  // Stage Options Menu State
-  const [stageOptionsVisible, setStageOptionsVisible] = useState(false);
-  const [selectedStageOption, setSelectedStageOption] = useState<{
-    id: number;
-    name: string;
-  } | null>(null);
 
   const fetchNotifications = async () => {
     try {
@@ -970,10 +1482,8 @@ const AdminDashboardScreen = () => {
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [addTaskModalVisible, setAddTaskModalVisible] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskSerialNumber, setNewTaskSerialNumber] = useState("");
   const [activePhaseId, setActivePhaseId] = useState<number | null>(null);
-  const [editPhaseModalVisible, setEditPhaseModalVisible] = useState(false);
-  const [editingPhaseId, setEditingPhaseId] = useState<number | null>(null);
-  const [editingPhaseName, setEditingPhaseName] = useState("");
 
   // Phase Budget Edit State
   const [editBudgetModalVisible, setEditBudgetModalVisible] = useState(false);
@@ -1033,6 +1543,12 @@ const AdminDashboardScreen = () => {
 
   // Project Settings Modal State
   const [projectSettingsVisible, setProjectSettingsVisible] = useState(false);
+
+  // Delete Project Confirmation State
+  const [deleteProjectModalVisible, setDeleteProjectModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [projectToDelete, setProjectToDelete] = useState<{ id: number; name: string } | null>(null);
+
 
   // Chat / Stage Progress Modal State
   const [chatPhaseId, setChatPhaseId] = useState<number | null>(null);
@@ -1985,67 +2501,18 @@ const AdminDashboardScreen = () => {
     }
   };
 
-  const handleAddPhase = async () => {
-    if (!selectedSite || !newPhaseName.trim()) {
-      showToast("Please enter a stage name", "error");
-      return;
-    }
+
+
+  /* Delete Phase Logic */
+  const [phaseToDelete, setPhaseToDelete] = useState<{ id: number; name: string } | null>(null);
+
+  const performDeletePhase = async () => {
+    if (!phaseToDelete) return;
 
     try {
-      await api.post("/phases", {
-        siteId: selectedSite.id,
-        name: newPhaseName,
-        orderNum: newPhaseSNo || projectPhases.length + 1,
-      });
-      showToast("Stage added successfully", "success");
-      setPhaseModalVisible(false);
-      setNewPhaseName("");
-      setNewPhaseSNo("");
-      fetchProjectDetails(selectedSite.id); // Refresh
-
-      // Refresh settings view if open
-      if (projectSettingsVisible && selectedSite?.id) {
-        const response = await api.get(`/sites/${selectedSite.id}`);
-        if (response.data.phases) {
-          setSettingsPhases(response.data.phases);
-        }
-      }
-    } catch (error) {
-      console.error("Error adding phase:", error);
-      showToast("Failed to add stage", "error");
-    }
-  };
-
-  const handleDeletePhase = async (phaseId: number, phaseName: string) => {
-    const confirmDelete =
-      Platform.OS === "web"
-        ? (window as any).confirm(
-          `Are you sure you want to delete the "${phaseName}" stage? This will also delete all tasks inside it.`
-        )
-        : await new Promise((resolve) => {
-          Alert.alert(
-            "Delete Stage",
-            `Are you sure you want to delete "${phaseName}"? All tasks inside will be lost.`,
-            [
-              {
-                text: "Cancel",
-                style: "cancel",
-                onPress: () => resolve(false),
-              },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => resolve(true),
-              },
-            ]
-          );
-        });
-
-    if (!confirmDelete) return;
-
-    try {
-      await api.delete(`/phases/${phaseId}`);
+      await api.delete(`/phases/${phaseToDelete.id}`);
       showToast("Stage deleted successfully", "success");
+
       if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
 
       // Refresh settings view if open
@@ -2058,43 +2525,70 @@ const AdminDashboardScreen = () => {
     } catch (error) {
       console.error("Error deleting phase:", error);
       showToast("Failed to delete stage", "error");
+    } finally {
+      setPhaseToDelete(null);
     }
   };
 
-  const handleDeleteTask = async (taskId: number, taskName: string) => {
-    const confirmDelete =
-      Platform.OS === "web"
-        ? (window as any).confirm(
-          `Are you sure you want to delete "${taskName}"?`
-        )
-        : await new Promise((resolve) => {
-          Alert.alert(
-            "Delete Task",
-            `Are you sure you want to delete "${taskName}"?`,
-            [
-              {
-                text: "Cancel",
-                style: "cancel",
-                onPress: () => resolve(false),
-              },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => resolve(true),
-              },
-            ]
-          );
-        });
+  const handleDeletePhase = (phaseId: number, phaseName: string) => {
+    setPhaseToDelete({ id: phaseId, name: phaseName });
+  };
 
-    if (!confirmDelete) return;
+  /* Delete Task Logic */
+  const [taskToDelete, setTaskToDelete] = useState<{ id: number; name: string } | null>(null);
+
+  const handleDeleteTaskPress = (task: any) => {
+    setTaskToDelete({ id: task.id, name: task.name });
+  };
+
+  const performDeleteTask = async () => {
+    if (!taskToDelete) return;
 
     try {
-      await api.delete(`/tasks/${taskId}`);
+      await api.delete(`/tasks/${taskToDelete.id}`);
       showToast("Task deleted successfully", "success");
+
+      // Optimistic update
+      setProjectTasks((prev) => prev.filter((t) => t.id !== taskToDelete.id));
+
       if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
     } catch (error) {
       console.error("Error deleting task:", error);
       showToast("Failed to delete task", "error");
+    } finally {
+      setTaskToDelete(null);
+    }
+  };
+
+
+
+  const handleTaskReorder = async (data: any[], phaseId: number) => {
+    // 1. Optimistic Update
+    const newOrderMap = new Map();
+    data.forEach((task, index) => {
+      newOrderMap.set(task.id, index);
+    });
+
+    const updatedProjectTasks = projectTasks.map((t) => {
+      if (t.phase_id === phaseId && newOrderMap.has(t.id)) {
+        return { ...t, order_index: newOrderMap.get(t.id) };
+      }
+      return t;
+    });
+
+    setProjectTasks(updatedProjectTasks);
+
+    // 2. API Call
+    try {
+      const reorderPayload = data.map((task, index) => ({
+        id: task.id,
+        order_index: index,
+      }));
+      await api.put("/tasks/reorder", { tasks: reorderPayload });
+    } catch (error) {
+      console.error("Reorder failed", error);
+      showToast("Failed to save new order", "error");
+      // Optionally revert state here if critical
     }
   };
 
@@ -2104,19 +2598,27 @@ const AdminDashboardScreen = () => {
       return;
     }
 
+    const orderNum = parseInt(newTaskSerialNumber);
+    if (!newTaskSerialNumber || isNaN(orderNum)) {
+      showToast("Please enter a valid serial number", "error");
+      return;
+    }
+
     try {
       await api.post("/tasks", {
         siteId: selectedSite.id,
         phaseId: activePhaseId,
         name: newTaskName,
+        orderIndex: orderNum
       });
       showToast("Task added successfully", "success");
       setAddTaskModalVisible(false);
       setNewTaskName("");
+      setNewTaskSerialNumber("");
       if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding task:", error);
-      showToast("Failed to add task", "error");
+      showToast(error.response?.data?.message || "Failed to add task", "error");
     }
   };
 
@@ -2829,6 +3331,38 @@ Project Team`;
     }
   };
 
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    // Check if confirmation text matches
+    if (deleteConfirmText.trim() !== "DELETE") {
+      showToast("Please type DELETE to confirm", "error");
+      return;
+    }
+
+    try {
+      await api.delete(`/sites/${projectToDelete.id}`);
+      showToast("Project deleted permanently", "success");
+
+      // Close modals and reset states
+      setDeleteProjectModalVisible(false);
+      setDeleteConfirmText("");
+      setProjectToDelete(null);
+      setProjectModalVisible(false);
+      setProjectSettingsVisible(false);
+
+      // Refresh the project list
+      fetchSites();
+      fetchDashboardStats();
+    } catch (error: any) {
+      console.error("Error deleting project:", error);
+      showToast(
+        error.response?.data?.message || "Failed to delete project",
+        "error"
+      );
+    }
+  };
+
   const handleSaveEmployee = async () => {
     if (!newEmployee.name || !newEmployee.phone || !newEmployee.role) {
       showToast("Name, Phone, and Role are required", "error");
@@ -2931,35 +3465,6 @@ Project Team`;
           { text: "Delete", style: "destructive", onPress: performDelete },
         ]
       );
-    }
-  };
-
-  const handleUpdatePhase = async () => {
-    if (!editingPhaseName.trim()) {
-      showToast("Phase name is required", "error");
-      return;
-    }
-
-    try {
-      // Find current phase to keep order_num and budget
-      const currentPhase = projectPhases.find((p) => p.id === editingPhaseId);
-      const order_num = currentPhase?.order_num || projectPhases.length;
-      const budget = currentPhase?.budget || 0;
-
-      await api.put(`/phases/${editingPhaseId}`, {
-        name: editingPhaseName,
-        order_num: order_num,
-        budget: budget,
-      });
-
-      showToast("Phase updated successfully", "success");
-      setEditPhaseModalVisible(false);
-      setEditingPhaseId(null);
-      setEditingPhaseName("");
-      if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
-    } catch (error: any) {
-      console.error("Error updating phase:", error);
-      showToast("Failed to update phase", "error");
     }
   };
 
@@ -3510,7 +4015,9 @@ Project Team`;
             position: "absolute",
             top: 60,
             right: 20,
-            width: 300,
+
+            width: '85%',
+            maxWidth: 300,
             backgroundColor: "#fff",
             borderRadius: 12,
             shadowColor: "#000",
@@ -3935,6 +4442,8 @@ Project Team`;
           ))}
       </View>
 
+
+
       {/* Project Details Modal */}
       <Modal
         visible={projectModalVisible}
@@ -3995,7 +4504,7 @@ Project Team`;
             })}
           </ScrollView>
 
-          <ScrollView style={styles.modalBody}>
+          <NestableScrollContainer style={styles.modalBody}>
             {activeProjectTab === "Tasks" && (
               <View style={styles.tabContentContainer}>
                 <View style={styles.sectionHeaderRow}>
@@ -4004,7 +4513,14 @@ Project Team`;
                   </Text>
                   <TouchableOpacity
                     style={styles.addButtonSmall}
-                    onPress={() => setPhaseModalVisible(true)}
+                    onPress={() => {
+                      // Auto-calculate next serial number
+                      const maxSerial = projectPhases.length > 0
+                        ? Math.max(...projectPhases.map(p => p.serial_number || 0))
+                        : 0;
+                      setNewStageSerialNumber(String(maxSerial + 1));
+                      setAddStageModalVisible(true);
+                    }}
                   >
                     <Ionicons name="add" size={18} color="#fff" />
                     <Text style={styles.addButtonTextSmall}>Add Stage</Text>
@@ -4017,414 +4533,464 @@ Project Team`;
                     <Text style={styles.emptyTabText}>No stages defined</Text>
                   </View>
                 ) : (
-                  projectPhases.map((phase, index) => {
-                    const tasksInPhase = projectTasks.filter(
-                      (t) => t.phase_id === phase.id
-                    );
-                    const isExpanded = expandedPhaseIds.includes(phase.id);
-                    const completedTasks = tasksInPhase.filter(
-                      (t) =>
-                        t.status === "Completed" || t.status === "completed"
-                    ).length;
-                    const totalTasks = tasksInPhase.length;
-                    const progress =
-                      totalTasks > 0
-                        ? Math.round((completedTasks / totalTasks) * 100)
-                        : 0;
+                  // Group Phases by Floor
+                  <View>
+                    {[...availableFloors, "Other"].map((floorName) => {
+                      const floorPhases = projectPhases.filter((p) => {
+                        const pFloor = p.floor_name || p.floor || "Ground Floor";
+                        if (floorName === "Other")
+                          return !availableFloors.includes(pFloor);
+                        return pFloor === floorName;
+                      });
 
-                    return (
-                      <View key={phase.id} style={styles.phaseContainer}>
-                        <TouchableOpacity
-                          style={[
-                            styles.phaseHeader,
-                            isExpanded
-                              ? styles.phaseHeaderExpanded
-                              : styles.phaseHeaderCollapsed,
-                            isMobile && {
-                              flexDirection: "column",
-                              alignItems: "stretch",
-                              gap: 12,
-                            },
-                          ]}
-                          onPress={() => togglePhase(phase.id)}
-                          activeOpacity={0.9}
-                        >
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 12,
-                              width: isMobile ? "100%" : "auto",
-                              flex: isMobile ? 0 : 1,
-                            }}
-                          >
-                            <View style={styles.phaseBadge}>
-                              <Text style={styles.phaseBadgeText}>
-                                {index + 1}
-                              </Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.phaseTitle} numberOfLines={2}>
-                                {phase.name}
-                              </Text>
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  gap: 8,
-                                }}
-                              >
-                                <Text style={styles.phaseSubtitle}>
-                                  {completedTasks}/{totalTasks} Completed ·{" "}
-                                  {progress}%
-                                </Text>
-                                <View
-                                  style={{
-                                    width: 1,
-                                    height: 12,
-                                    backgroundColor: "rgba(255,255,255,0.3)",
-                                  }}
-                                />
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 4,
-                                  }}
+                      if (floorPhases.length === 0) return null;
+
+                      return (
+                        <View key={floorName} style={{ marginBottom: 24 }}>
+                          <View style={{
+                            paddingVertical: 8,
+                            paddingHorizontal: 12,
+                            backgroundColor: '#F3F4F6',
+                            borderRadius: 8,
+                            marginBottom: 12,
+                            borderLeftWidth: 4,
+                            borderLeftColor: '#8B0000'
+                          }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#374151', textTransform: 'uppercase' }}>
+                              {floorName}
+                            </Text>
+                          </View>
+
+                          {floorPhases.map((phase, index) => {
+                            const tasksInPhase = projectTasks.filter(
+                              (t) => t.phase_id === phase.id
+                            );
+                            const isExpanded = expandedPhaseIds.includes(phase.id);
+                            const completedTasks = tasksInPhase.filter(
+                              (t) =>
+                                t.status === "Completed" || t.status === "completed"
+                            ).length;
+                            const totalTasks = tasksInPhase.length;
+                            const progress =
+                              totalTasks > 0
+                                ? Math.round((completedTasks / totalTasks) * 100)
+                                : 0;
+
+                            return (
+                              <View key={phase.id} style={styles.phaseContainer}>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.phaseHeader,
+                                    isExpanded
+                                      ? styles.phaseHeaderExpanded
+                                      : styles.phaseHeaderCollapsed,
+                                    isMobile && {
+                                      flexDirection: "column",
+                                      alignItems: "stretch",
+                                      gap: 12,
+                                    },
+                                  ]}
+                                  onPress={() => togglePhase(phase.id)}
+                                  activeOpacity={0.9}
                                 >
-                                  <Text style={styles.phaseSubtitle}>
-                                    ₹
-                                    {(phase.used_amount || 0).toLocaleString(
-                                      "en-IN"
-                                    )}{" "}
-                                    / ₹
-                                    {(phase.budget || 0).toLocaleString(
-                                      "en-IN"
-                                    )}
-                                  </Text>
-                                  {user?.role === "admin" && (
-                                    <TouchableOpacity
-                                      hitSlop={{
-                                        top: 10,
-                                        bottom: 10,
-                                        left: 10,
-                                        right: 10,
-                                      }}
-                                      onPress={(e) => {
-                                        e.stopPropagation();
-                                        setEditingPhaseId(phase.id);
-                                        setEditingPhaseBudget(
-                                          String(phase.budget || 0)
-                                        );
-                                        setEditBudgetModalVisible(true);
-                                      }}
-                                    >
-                                      <Ionicons
-                                        name="pencil"
-                                        size={12}
-                                        color="rgba(255,255,255,0.8)"
-                                      />
-                                    </TouchableOpacity>
-                                  )}
-                                </View>
-                              </View>
-                            </View>
-                          </View>
-
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 8,
-                              justifyContent: "flex-end",
-                              width: isMobile ? "100%" : "auto",
-                              paddingTop: isMobile ? 8 : 0,
-                              borderTopWidth: isMobile ? 1 : 0,
-                              borderTopColor: isMobile
-                                ? "rgba(255,255,255,0.2)"
-                                : "transparent",
-                            }}
-                          >
-                            <TouchableOpacity
-                              style={styles.iconButton}
-                              onPress={() => {
-                                setSelectedStageOption({
-                                  id: phase.id,
-                                  name: phase.name,
-                                });
-                                setStageOptionsVisible(true);
-                              }}
-                            >
-                              <Ionicons
-                                name="ellipsis-vertical"
-                                size={18}
-                                color="#fff"
-                              />
-                            </TouchableOpacity>
-                            <View style={styles.iconButton}>
-                              <Ionicons
-                                name={
-                                  isExpanded ? "chevron-up" : "chevron-down"
-                                }
-                                size={20}
-                                color="#fff"
-                              />
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-
-                        {isExpanded && (
-                          <View style={styles.taskList}>
-                            {tasksInPhase.length > 0 ? (
-                              tasksInPhase.map((task) => {
-                                const isCompleted =
-                                  task.status === "Completed" ||
-                                  task.status === "completed";
-                                return (
                                   <View
-                                    key={task.id}
-                                    style={[
-                                      styles.taskItem,
-                                      isCompleted && styles.taskItemCompleted,
-                                      isMobile && {
-                                        flexDirection: "column",
-                                        alignItems: "stretch",
-                                        gap: 12,
-                                      },
-                                    ]}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 12,
+                                      width: isMobile ? "100%" : "auto",
+                                      flex: isMobile ? 0 : 1,
+                                    }}
                                   >
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        gap: 12,
-                                        width: isMobile ? "100%" : "auto",
-                                        flex: isMobile ? 0 : 1,
-                                        minWidth: 200,
-                                      }}
-                                    >
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.radioButton,
-                                          isCompleted &&
-                                          styles.radioButtonSelected,
-                                        ]}
-                                      >
-                                        {isCompleted && (
-                                          <Ionicons
-                                            name="checkmark"
-                                            size={12}
-                                            color="#fff"
-                                          />
-                                        )}
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={{ flex: 1 }}
-                                        onPress={() => {
-                                          // Open Stage Progress / Chat View via Modal (to overlay over Project Modal)
-                                          setChatPhaseId(phase.id);
-                                          setChatTaskId(task.id);
-                                          setChatSiteName(
-                                            selectedSite?.name || "Site"
-                                          );
+                                    <View style={styles.phaseBadge}>
+                                      <Text style={styles.phaseBadgeText}>
+                                        {index + 1}
+                                      </Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={styles.phaseTitle} numberOfLines={2}>
+                                        {phase.name}
+                                      </Text>
+                                      <View
+                                        style={{
+                                          flexDirection: "row",
+                                          alignItems: "center",
+                                          gap: 8,
                                         }}
                                       >
-                                        {(task.status ===
-                                          "waiting_for_approval" ||
-                                          task.status ===
-                                          "Waiting Approval") && (
-                                            <View
-                                              style={{
-                                                backgroundColor: "#FEF9C3",
-                                                alignSelf: "flex-start",
-                                                paddingHorizontal: 8,
-                                                paddingVertical: 2,
-                                                borderRadius: 4,
-                                                marginBottom: 4,
-                                                borderWidth: 1,
-                                                borderColor: "#FDE047",
-                                              }}
-                                            >
-                                              <Text
-                                                style={{
-                                                  color: "#854D0E",
-                                                  fontSize: 10,
-                                                  fontWeight: "bold",
-                                                }}
-                                              >
-                                                🟡 Completed – Approval Pending
-                                              </Text>
-                                            </View>
-                                          )}
-                                        <Text style={styles.taskTitle}>
-                                          {task.name}
+                                        <Text style={styles.phaseSubtitle}>
+                                          {completedTasks}/{totalTasks} Completed ·{" "}
+                                          {progress}%
                                         </Text>
-                                        <Text style={styles.taskSubtitle}>
-                                          {task.status}
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </View>
-
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        gap: 8,
-                                        justifyContent: isMobile
-                                          ? "space-between"
-                                          : "flex-end",
-                                        width: isMobile ? "100%" : "auto",
-                                      }}
-                                    >
-                                      {user?.role === "admin" && (
+                                        <View
+                                          style={{
+                                            width: 1,
+                                            height: 12,
+                                            backgroundColor: "rgba(255,255,255,0.3)",
+                                          }}
+                                        />
                                         <View
                                           style={{
                                             flexDirection: "row",
                                             alignItems: "center",
-                                            justifyContent: "flex-end",
-                                            gap: 6,
+                                            gap: 4,
                                           }}
                                         >
-                                          {task.assignments &&
-                                            task.assignments.length > 0 ? (
-                                            <>
-                                              <View
-                                                style={{
-                                                  flexDirection: "row",
-                                                  gap: 6,
-                                                  flexWrap: "wrap",
-                                                  justifyContent: "flex-end",
-                                                }}
-                                              >
-                                                {task.assignments.map(
-                                                  (assignment: any) => (
-                                                    <View
-                                                      key={assignment.id}
-                                                      style={
-                                                        styles.employeeNameBadge
-                                                      }
-                                                    >
-                                                      <Text
-                                                        style={{ fontSize: 10 }}
-                                                      >
-                                                        👷
-                                                      </Text>
-                                                      <Text
-                                                        style={
-                                                          styles.employeeNameText
-                                                        }
-                                                      >
-                                                        {assignment.name
-                                                          ? assignment.name.split(
-                                                            " "
-                                                          )[0]
-                                                          : "Unknown"}
-                                                      </Text>
-                                                    </View>
-                                                  )
-                                                )}
-                                                {task.due_date && (
-                                                  <View
-                                                    style={[
-                                                      styles.employeeNameBadge,
-                                                      {
-                                                        backgroundColor:
-                                                          "#F3F4F6",
-                                                        borderColor: "#D1D5DB",
-                                                      },
-                                                    ]}
-                                                  >
-                                                    <Text
-                                                      style={{ fontSize: 10 }}
-                                                    >
-                                                      📅
-                                                    </Text>
-                                                    <Text
-                                                      style={[
-                                                        styles.employeeNameText,
-                                                        { color: "#374151" },
-                                                      ]}
-                                                    >
-                                                      Due:{" "}
-                                                      {new Date(
-                                                        task.due_date
-                                                      ).toLocaleDateString(
-                                                        "en-GB",
-                                                        {
-                                                          day: "2-digit",
-                                                          month: "short",
-                                                          year: "numeric",
-                                                        }
-                                                      )}
-                                                    </Text>
-                                                  </View>
-                                                )}
-                                              </View>
-                                            </>
-                                          ) : null}
-
-                                          <TouchableOpacity
-                                            style={styles.addAssigneeBtn}
-                                            onPress={() =>
-                                              handleAssignTask(task, phase)
-                                            }
-                                          >
-                                            <Ionicons
-                                              name="pencil"
-                                              size={16}
-                                              color="#374151"
-                                            />
-                                          </TouchableOpacity>
+                                          <Text style={styles.phaseSubtitle}>
+                                            ₹
+                                            {(phase.used_amount || 0).toLocaleString(
+                                              "en-IN"
+                                            )}{" "}
+                                            / ₹
+                                            {(phase.budget || 0).toLocaleString(
+                                              "en-IN"
+                                            )}
+                                          </Text>
+                                          {user?.role === "admin" && (
+                                            <TouchableOpacity
+                                              hitSlop={{
+                                                top: 10,
+                                                bottom: 10,
+                                                left: 10,
+                                                right: 10,
+                                              }}
+                                              onPress={(e) => {
+                                                e.stopPropagation();
+                                                setEditingPhaseId(phase.id);
+                                                setEditingPhaseBudget(
+                                                  String(phase.budget || 0)
+                                                );
+                                                setEditBudgetModalVisible(true);
+                                              }}
+                                            >
+                                              <Ionicons
+                                                name="pencil"
+                                                size={12}
+                                                color="rgba(255,255,255,0.8)"
+                                              />
+                                            </TouchableOpacity>
+                                          )}
                                         </View>
-                                      )}
-
-                                      <TouchableOpacity
-                                        style={styles.iconButton}
-                                        onPress={() =>
-                                          confirmDeleteTask(task.id)
-                                        }
-                                      >
-                                        <Ionicons
-                                          name="trash-outline"
-                                          size={16}
-                                          color="#ef4444"
-                                        />
-                                      </TouchableOpacity>
+                                      </View>
                                     </View>
                                   </View>
-                                );
-                              })
-                            ) : (
-                              <Text style={styles.noTasksText}>
-                                No tasks in this stage
-                              </Text>
-                            )}
 
-                            <TouchableOpacity
-                              style={styles.addTaskBtn}
-                              onPress={() => {
-                                setActivePhaseId(phase.id);
-                                setNewTaskName("");
-                                setAddTaskModalVisible(true);
-                              }}
-                            >
-                              <Ionicons
-                                name="add-circle-outline"
-                                size={20}
-                                color="#8B0000"
-                              />
-                              <Text style={styles.addTaskTextSmall}>
-                                Add Task to this Stage
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 8,
+                                      justifyContent: "flex-end",
+                                      width: isMobile ? "100%" : "auto",
+                                      paddingTop: isMobile ? 8 : 0,
+                                      borderTopWidth: isMobile ? 1 : 0,
+                                      borderTopColor: isMobile
+                                        ? "rgba(255,255,255,0.2)"
+                                        : "transparent",
+                                    }}
+                                  >
+                                    <TouchableOpacity
+                                      style={styles.iconButton}
+                                      onPress={() => {
+                                        setSelectedStageOption({
+                                          id: phase.id,
+                                          name: phase.name,
+                                        });
+                                        setStageOptionsVisible(true);
+                                      }}
+                                    >
+                                      <Ionicons
+                                        name="ellipsis-vertical"
+                                        size={18}
+                                        color="#fff"
+                                      />
+                                    </TouchableOpacity>
+                                    <View style={styles.iconButton}>
+                                      <Ionicons
+                                        name={
+                                          isExpanded ? "chevron-up" : "chevron-down"
+                                        }
+                                        size={20}
+                                        color="#fff"
+                                      />
+                                    </View>
+                                  </View>
+                                </TouchableOpacity>
+
+                                {isExpanded && (
+                                  <View style={styles.taskList}>
+                                    {tasksInPhase.length > 0 ? (
+                                      <NestableDraggableFlatList
+                                        data={tasksInPhase}
+                                        keyExtractor={(item) => item.id.toString()}
+                                        onDragEnd={({ data }) => handleTaskReorder(data, phase.id)}
+                                        renderItem={({ item, drag, isActive }: any) => {
+                                          const task = item;
+                                          const isCompleted =
+                                            task.status === "Completed" ||
+                                            task.status === "completed";
+                                          return (
+                                            <ScaleDecorator>
+                                              <View
+                                                style={[
+                                                  styles.taskItem,
+                                                  isCompleted && styles.taskItemCompleted,
+                                                  isActive && { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" },
+                                                  isMobile && {
+                                                    flexDirection: "column",
+                                                    alignItems: "stretch",
+                                                    gap: 12,
+                                                  },
+                                                ]}
+                                              >
+                                                <View
+                                                  style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    gap: 12,
+                                                    width: isMobile ? "100%" : "auto",
+                                                    flex: isMobile ? 0 : 1,
+                                                    minWidth: 200,
+                                                  }}
+                                                >
+                                                  {/* Drag Handle */}
+                                                  <TouchableOpacity
+                                                    onLongPress={drag}
+                                                    disabled={isActive}
+                                                    style={{ padding: 4 }}
+                                                  >
+                                                    <Ionicons name="reorder-three-outline" size={24} color="#9ca3af" />
+                                                  </TouchableOpacity>
+
+                                                  <TouchableOpacity
+                                                    style={[
+                                                      styles.radioButton,
+                                                      isCompleted &&
+                                                      styles.radioButtonSelected,
+                                                    ]}
+                                                  >
+                                                    {isCompleted && (
+                                                      <Ionicons
+                                                        name="checkmark"
+                                                        size={12}
+                                                        color="#fff"
+                                                      />
+                                                    )}
+                                                  </TouchableOpacity>
+                                                  <TouchableOpacity
+                                                    style={{ flex: 1 }}
+                                                    onPress={() => {
+                                                      // Open Stage Progress / Chat View via Modal (to overlay over Project Modal)
+                                                      setChatPhaseId(phase.id);
+                                                      setChatTaskId(task.id);
+                                                      setChatSiteName(
+                                                        selectedSite?.name || "Site"
+                                                      );
+                                                    }}
+                                                  >
+                                                    {(task.status ===
+                                                      "waiting_for_approval" ||
+                                                      task.status ===
+                                                      "Waiting Approval") && (
+                                                        <View
+                                                          style={{
+                                                            backgroundColor: "#FEF9C3",
+                                                            alignSelf: "flex-start",
+                                                            paddingHorizontal: 8,
+                                                            paddingVertical: 2,
+                                                            borderRadius: 4,
+                                                            marginBottom: 4,
+                                                            borderWidth: 1,
+                                                            borderColor: "#FDE047",
+                                                          }}
+                                                        >
+                                                          <Text
+                                                            style={{
+                                                              color: "#854D0E",
+                                                              fontSize: 10,
+                                                              fontWeight: "bold",
+                                                            }}
+                                                          >
+                                                            🟡 Completed – Approval Pending
+                                                          </Text>
+                                                        </View>
+                                                      )}
+                                                    <Text style={styles.taskTitle}>
+                                                      {task.name}
+                                                    </Text>
+                                                    <Text style={styles.taskSubtitle}>
+                                                      {task.status}
+                                                    </Text>
+                                                  </TouchableOpacity>
+                                                </View>
+
+                                                <View
+                                                  style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    justifyContent: isMobile
+                                                      ? "space-between"
+                                                      : "flex-end",
+                                                    width: isMobile ? "100%" : "auto",
+                                                  }}
+                                                >
+                                                  {user?.role === "admin" && (
+                                                    <View
+                                                      style={{
+                                                        flexDirection: "row",
+                                                        alignItems: "center",
+                                                        justifyContent: "flex-end",
+                                                        gap: 6,
+                                                      }}
+                                                    >
+                                                      {task.assignments &&
+                                                        task.assignments.length > 0 ? (
+                                                        <>
+                                                          <View
+                                                            style={{
+                                                              flexDirection: "row",
+                                                              gap: 6,
+                                                              flexWrap: "wrap",
+                                                              justifyContent: "flex-end",
+                                                            }}
+                                                          >
+                                                            {task.assignments.map(
+                                                              (assignment: any) => (
+                                                                <View
+                                                                  key={assignment.id}
+                                                                  style={
+                                                                    styles.employeeNameBadge
+                                                                  }
+                                                                >
+                                                                  <Text
+                                                                    style={{ fontSize: 10 }}
+                                                                  >
+                                                                    👷
+                                                                  </Text>
+                                                                  <Text
+                                                                    style={
+                                                                      styles.employeeNameText
+                                                                    }
+                                                                  >
+                                                                    {assignment.name
+                                                                      ? assignment.name.split(
+                                                                        " "
+                                                                      )[0]
+                                                                      : "Unknown"}
+                                                                  </Text>
+                                                                </View>
+                                                              )
+                                                            )}
+                                                            {task.due_date && (
+                                                              <View
+                                                                style={[
+                                                                  styles.employeeNameBadge,
+                                                                  {
+                                                                    backgroundColor:
+                                                                      "#F3F4F6",
+                                                                    borderColor: "#D1D5DB",
+                                                                  },
+                                                                ]}
+                                                              >
+                                                                <Text
+                                                                  style={{ fontSize: 10 }}
+                                                                >
+                                                                  📅
+                                                                </Text>
+                                                                <Text
+                                                                  style={[
+                                                                    styles.employeeNameText,
+                                                                    { color: "#374151" },
+                                                                  ]}
+                                                                >
+                                                                  Due:{" "}
+                                                                  {new Date(
+                                                                    task.due_date
+                                                                  ).toLocaleDateString(
+                                                                    "en-GB",
+                                                                    {
+                                                                      day: "2-digit",
+                                                                      month: "short",
+                                                                      year: "numeric",
+                                                                    }
+                                                                  )}
+                                                                </Text>
+                                                              </View>
+                                                            )}
+                                                          </View>
+                                                        </>
+                                                      ) : null}
+
+                                                      <TouchableOpacity
+                                                        style={styles.addAssigneeBtn}
+                                                        onPress={() =>
+                                                          handleAssignTask(task, phase)
+                                                        }
+                                                      >
+                                                        <Ionicons
+                                                          name="pencil"
+                                                          size={16}
+                                                          color="#374151"
+                                                        />
+                                                      </TouchableOpacity>
+                                                    </View>
+                                                  )}
+
+                                                  <TouchableOpacity
+                                                    style={styles.iconButton}
+                                                    onPress={() =>
+                                                      handleDeleteTaskPress(task)
+                                                    }
+                                                  >
+                                                    <Ionicons
+                                                      name="trash-outline"
+                                                      size={16}
+                                                      color="#ef4444"
+                                                    />
+                                                  </TouchableOpacity>
+                                                </View>
+                                              </View>
+                                            </ScaleDecorator>
+                                          );
+                                        }}
+                                      />
+                                    ) : (
+                                      <Text style={styles.noTasksText}>
+                                        No tasks in this stage
+                                      </Text>
+                                    )}
+
+                                    <TouchableOpacity
+                                      style={styles.addTaskBtn}
+                                      onPress={() => {
+                                        setActivePhaseId(phase.id);
+                                        setNewTaskName("");
+                                        setAddTaskModalVisible(true);
+                                      }}
+                                    >
+                                      <Ionicons
+                                        name="add-circle-outline"
+                                        size={20}
+                                        color="#8B0000"
+                                      />
+                                      <Text style={styles.addTaskTextSmall}>
+                                        Add Subtask to this Stage
+                                      </Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </View>
                 )}
               </View>
-            )}
+            )
+            }
 
             {activeProjectTab === "Transactions" && selectedSite && (
               <ProjectTransactions
@@ -4955,47 +5521,12 @@ Project Team`;
                 )}
               </View>
             )}
-          </ScrollView>
+          </NestableScrollContainer>
         </SafeAreaView>
       </Modal>
 
-      {/* Add Phase Modal (Small) */}
-      <Modal
-        visible={phaseModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setPhaseModalVisible(false)}
-      >
-        <View style={styles.miniModalOverlay}>
-          <View style={styles.miniModalContent}>
-            <Text style={styles.miniModalTitle}>
-              Add New Construction Stage
-            </Text>
-            <TextInput
-              style={styles.miniModalInput}
-              placeholder="Enter stage name (e.g. Roof Top)"
-              value={newPhaseName}
-              onChangeText={setNewPhaseName}
-              autoFocus={true}
-            />
 
-            <View style={styles.miniModalActions}>
-              <TouchableOpacity
-                style={[styles.miniModalBtn, styles.miniModalCancelBtn]}
-                onPress={() => setPhaseModalVisible(false)}
-              >
-                <Text style={styles.miniModalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.miniModalBtn, styles.miniModalSaveBtn]}
-                onPress={handleAddPhase}
-              >
-                <Text style={styles.miniModalSaveText}>Add Stage</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+
 
       {/* Edit Phase Modal */}
       <Modal
@@ -5004,33 +5535,168 @@ Project Team`;
         animationType="fade"
         onRequestClose={() => setEditPhaseModalVisible(false)}
       >
-        <View style={styles.miniModalOverlay}>
-          <View style={styles.miniModalContent}>
-            <Text style={styles.miniModalTitle}>Edit Construction Stage</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 20 }}>Edit Construction Stage</Text>
+
+            {/* Floor Selection */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {availableFloors.map(floor => (
+                <TouchableOpacity
+                  key={floor}
+                  onPress={() => setEditingPhaseFloor(floor)}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    backgroundColor: editingPhaseFloor === floor ? '#8B0000' : '#F3F4F6',
+                    borderWidth: 1,
+                    borderColor: editingPhaseFloor === floor ? '#8B0000' : '#E5E7EB'
+                  }}
+                >
+                  <Text style={{ color: editingPhaseFloor === floor ? '#fff' : '#4B5563', fontSize: 13, fontWeight: '600' }}>{floor}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                onPress={() => setEditCustomFloorInputVisible(true)}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: '#F3F4F6',
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed'
+                }}
+              >
+                <Text style={{ color: '#4B5563', fontSize: 13, fontWeight: '600' }}>+ More Floors</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Custom Floor Input */}
+            {editCustomFloorInputVisible && (
+              <View style={{ marginBottom: 20, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 14,
+                    color: '#111827',
+                    flex: 1,
+                    height: 40
+                  }}
+                  placeholder="Enter Floor No. (e.g. 3)"
+                  keyboardType="numeric"
+                  value={editCustomFloorInput}
+                  onChangeText={setEditCustomFloorInput}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  onPress={handleEditAddCustomFloor}
+                  style={{ padding: 10, borderRadius: 8, backgroundColor: '#111827', height: 40, justifyContent: 'center' }}
+                >
+                  <Text style={{ fontWeight: '600', color: '#fff', fontSize: 13 }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Serial Number */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
             <TextInput
-              style={styles.miniModalInput}
-              placeholder="Enter stage name"
+              style={{
+                borderWidth: 1,
+                borderColor: '#D1D5DB',
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                color: '#111827',
+                marginBottom: 20
+              }}
+              placeholder="Enter serial number (e.g. 1)"
+              keyboardType="numeric"
+              value={editingPhaseSerialNumber}
+              onChangeText={setEditingPhaseSerialNumber}
+            />
+
+            {/* Stage Name */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Stage Name *</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: '#D1D5DB',
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                color: '#111827',
+                marginBottom: 24
+              }}
+              placeholder="Enter stage name (e.g. Roof Slab)"
               value={editingPhaseName}
               onChangeText={setEditingPhaseName}
-              autoFocus={true}
             />
-            <View style={styles.miniModalActions}>
+
+            {/* Actions */}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
-                style={[styles.miniModalBtn, styles.miniModalCancelBtn]}
                 onPress={() => setEditPhaseModalVisible(false)}
+                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' }}
               >
-                <Text style={styles.miniModalCancelText}>Cancel</Text>
+                <Text style={{ fontWeight: '600', color: '#374151' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.miniModalBtn, styles.miniModalSaveBtn]}
                 onPress={handleUpdatePhase}
+                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#8B0000', alignItems: 'center' }}
               >
-                <Text style={styles.miniModalSaveText}>Update</Text>
+                <Text style={{ fontWeight: '600', color: '#fff' }}>Update</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* Stage Options Menu Modal */}
+      <Modal
+        visible={stageOptionsVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setStageOptionsVisible(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setStageOptionsVisible(false)}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 8, minWidth: 200 }} onStartShouldSetResponder={() => true}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}
+              onPress={() => {
+                const phase = projectPhases.find(p => p.id === selectedStageOption?.id);
+                if (phase) handleEditStage(phase);
+              }}
+            >
+              <Ionicons name="create-outline" size={20} color="#374151" />
+              <Text style={{ fontSize: 15, color: '#374151' }}>Edit Stage</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}
+              onPress={() => {
+                if (selectedStageOption) {
+                  handleDeletePhase(selectedStageOption.id, selectedStageOption.name);
+                }
+                setStageOptionsVisible(false);
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              <Text style={{ fontSize: 15, color: '#EF4444' }}>Delete Stage</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
 
       {/* Edit Budget Modal */}
       <Modal
@@ -5088,6 +5754,15 @@ Project Team`;
         <View style={styles.miniModalOverlay}>
           <View style={styles.miniModalContent}>
             <Text style={styles.miniModalTitle}>Add New Task</Text>
+
+            <TextInput
+              style={[styles.miniModalInput, { marginBottom: 12 }]}
+              placeholder="Serial Number (e.g. 1)"
+              value={newTaskSerialNumber}
+              onChangeText={setNewTaskSerialNumber}
+              keyboardType="numeric"
+            />
+
             <TextInput
               style={styles.miniModalInput}
               placeholder="Enter task name (e.g. Site Plan Approval)"
@@ -5742,15 +6417,34 @@ Project Team`;
             <Text style={styles.settingsHeaderTitle}>
               Configuration Details
             </Text>
-            <TouchableOpacity
-              style={styles.saveSettingsBtn}
-              onPress={async () => {
-                await submitCreateProject();
-                setProjectSettingsVisible(false);
-              }}
-            >
-              <Text style={styles.saveSettingsText}>Save</Text>
-            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#25D366',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+                onPress={handleShareProjectPDF}
+              >
+                <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
+                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13 }}>Share Report</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.saveSettingsBtn}
+                onPress={async () => {
+                  await submitCreateProject();
+                  setProjectSettingsVisible(false);
+                }}
+              >
+                <Text style={styles.saveSettingsText}>Update</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={{ flex: 1, flexDirection: isMobile ? "column" : "row" }}>
@@ -6532,6 +7226,41 @@ Project Team`;
                   </View>
                 </View>
 
+
+                {/* Delete Project Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderWidth: 2,
+                    borderColor: "#DC2626",
+                    borderRadius: 12,
+                    paddingVertical: 14,
+                    paddingHorizontal: 16,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 16,
+                    marginBottom: 12,
+                  }}
+                  onPress={() => {
+                    if (selectedSite) {
+                      setProjectToDelete({ id: selectedSite.id, name: selectedSite.name });
+                      setDeleteProjectModalVisible(true);
+                    }
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#DC2626" style={{ marginRight: 8 }} />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: "#DC2626",
+                    }}
+                  >
+                    Delete Project Permanently
+                  </Text>
+                </TouchableOpacity>
+
                 {/* Save Configuration Button */}
                 <TouchableOpacity
                   style={{
@@ -7092,8 +7821,142 @@ Project Team`;
                 </ScrollView>
               </View>
             )}
+
+            <View></View>
           </View>
         </SafeAreaView>
+      </Modal>
+
+      {/* Add New Stage Modal */}
+      <Modal
+        visible={addStageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAddStageModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 20 }}>Add New Construction Stage (Serial No.)</Text>
+
+            {/* Floor Selection */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {availableFloors.map(floor => (
+                <TouchableOpacity
+                  key={floor}
+                  onPress={() => setNewStageFloor(floor)}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    backgroundColor: newStageFloor === floor ? '#8B0000' : '#F3F4F6',
+                    borderWidth: 1,
+                    borderColor: newStageFloor === floor ? '#8B0000' : '#E5E7EB'
+                  }}
+                >
+                  <Text style={{ color: newStageFloor === floor ? '#fff' : '#4B5563', fontSize: 13, fontWeight: '600' }}>{floor}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                onPress={() => setCustomFloorInputVisible(true)}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: '#F3F4F6',
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed'
+                }}
+              >
+                <Text style={{ color: '#4B5563', fontSize: 13, fontWeight: '600' }}>+ More Floors</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Custom Floor Input */}
+            {customFloorInputVisible && (
+              <View style={{ marginBottom: 20, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 14,
+                    color: '#111827',
+                    flex: 1,
+                    height: 40
+                  }}
+                  placeholder="Enter Floor No. (e.g. 3)"
+                  keyboardType="numeric"
+                  value={customFloorInput}
+                  onChangeText={setCustomFloorInput}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  onPress={handleAddCustomFloor}
+                  style={{ padding: 10, borderRadius: 8, backgroundColor: '#111827', height: 40, justifyContent: 'center' }}
+                >
+                  <Text style={{ fontWeight: '600', color: '#fff', fontSize: 13 }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+
+
+            {/* Serial Number */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: '#D1D5DB',
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                color: '#111827',
+                marginBottom: 20
+              }}
+              placeholder="Enter serial number (e.g. 1)"
+              keyboardType="numeric"
+              value={newStageSerialNumber}
+              onChangeText={setNewStageSerialNumber}
+            />
+
+            {/* Stage Name */}
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Stage Name *</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: '#D1D5DB',
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                color: '#111827',
+                marginBottom: 24
+              }}
+              placeholder="Enter stage name (e.g. Roof Slab)"
+              value={newStageName}
+              onChangeText={setNewStageName}
+            />
+
+            {/* Actions */}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => setAddStageModalVisible(false)}
+                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' }}
+              >
+                <Text style={{ fontWeight: '600', color: '#374151' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleAddNewStage}
+                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#8B0000', alignItems: 'center' }}
+              >
+                <Text style={{ fontWeight: '600', color: '#fff' }}>Add Stage</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -7450,6 +8313,294 @@ Project Team`;
         </SafeAreaView>
       </Modal>
 
+      {/* Add New Stage Modal */}
+      <Modal
+        visible={addStageModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAddStageModalVisible(false)}
+      >
+        <View style={styles.miniModalOverlay}>
+          <View style={[styles.miniModalContent, { maxWidth: 500 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={styles.miniModalTitle}>Add New Construction Stage (Serial No.)</Text>
+              <TouchableOpacity onPress={() => setAddStageModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {availableFloors.map(floor => (
+                <TouchableOpacity
+                  key={floor}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: newStageFloor === floor ? '#8B0000' : '#D1D5DB',
+                    backgroundColor: newStageFloor === floor ? '#8B0000' : '#FFF',
+                  }}
+                  onPress={() => setNewStageFloor(floor)}
+                >
+                  <Text style={{ color: newStageFloor === floor ? '#FFF' : '#374151', fontWeight: '600', fontSize: 13 }}>
+                    {floor}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {!customFloorInputVisible ? (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                onPress={() => setCustomFloorInputVisible(true)}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#8B0000" />
+                <Text style={{ color: '#8B0000', fontSize: 14, fontWeight: '600', marginLeft: 6 }}>+ More Floors</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Enter Floor Number</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: '#D1D5DB',
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      fontSize: 14,
+                    }}
+                    placeholder="e.g. 3"
+                    value={customFloorInput}
+                    onChangeText={setCustomFloorInput}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: '#8B0000',
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                    }}
+                    onPress={handleAddCustomFloor}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: '600' }}>Add</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: '#F3F4F6',
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                    }}
+                    onPress={() => {
+                      setCustomFloorInputVisible(false);
+                      setCustomFloorInput('');
+                    }}
+                  >
+                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
+            <TextInput
+              style={styles.miniModalInput}
+              placeholder="e.g. 2"
+              value={newStageSerialNumber}
+              onChangeText={setNewStageSerialNumber}
+              keyboardType="numeric"
+            />
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 16 }}>Stage Name *</Text>
+            <TextInput
+              style={styles.miniModalInput}
+              placeholder="e.g. site planning"
+              value={newStageName}
+              onChangeText={setNewStageName}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  alignItems: 'center',
+                }}
+                onPress={() => setAddStageModalVisible(false)}
+              >
+                <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  backgroundColor: '#8B0000',
+                  alignItems: 'center',
+                }}
+                onPress={handleAddNewStage}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '600' }}>Add Stage</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Phase Modal */}
+      <Modal
+        visible={editPhaseModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setEditPhaseModalVisible(false)}
+      >
+        <View style={styles.miniModalOverlay}>
+          <View style={[styles.miniModalContent, { maxWidth: 500 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={styles.miniModalTitle}>Edit Construction Stage</Text>
+              <TouchableOpacity onPress={() => setEditPhaseModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Select Floor *</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {availableFloors.map(floor => (
+                <TouchableOpacity
+                  key={floor}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: editingPhaseFloor === floor ? '#8B0000' : '#D1D5DB',
+                    backgroundColor: editingPhaseFloor === floor ? '#8B0000' : '#FFF',
+                  }}
+                  onPress={() => setEditingPhaseFloor(floor)}
+                >
+                  <Text style={{ color: editingPhaseFloor === floor ? '#FFF' : '#374151', fontWeight: '600', fontSize: 13 }}>
+                    {floor}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {!editCustomFloorInputVisible ? (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                onPress={() => setEditCustomFloorInputVisible(true)}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#8B0000" />
+                <Text style={{ color: '#8B0000', fontSize: 14, fontWeight: '600', marginLeft: 6 }}>+ More Floors</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Enter Floor Number</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: '#D1D5DB',
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      fontSize: 14,
+                    }}
+                    placeholder="e.g. 3"
+                    value={editCustomFloorInput}
+                    onChangeText={setEditCustomFloorInput}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: '#8B0000',
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                    }}
+                    onPress={handleEditAddCustomFloor}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: '600' }}>Add</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: '#F3F4F6',
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                    }}
+                    onPress={() => {
+                      setEditCustomFloorInputVisible(false);
+                      setEditCustomFloorInput('');
+                    }}
+                  >
+                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Serial Number *</Text>
+            <TextInput
+              style={styles.miniModalInput}
+              placeholder="e.g. 2"
+              value={editingPhaseSerialNumber}
+              onChangeText={setEditingPhaseSerialNumber}
+              keyboardType="numeric"
+            />
+
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 16 }}>Stage Name *</Text>
+            <TextInput
+              style={styles.miniModalInput}
+              placeholder="e.g. site planning"
+              value={editingPhaseName}
+              onChangeText={setEditingPhaseName}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  alignItems: 'center',
+                }}
+                onPress={() => setEditPhaseModalVisible(false)}
+              >
+                <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  backgroundColor: '#8B0000',
+                  alignItems: 'center',
+                }}
+                onPress={handleUpdatePhase}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '600' }}>Update Stage</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Stage Options Menu Modal */}
       <Modal
         visible={stageOptionsVisible}
@@ -7463,21 +8614,7 @@ Project Team`;
           onPress={() => setStageOptionsVisible(false)}
         >
           <View style={styles.menuContainer}>
-            {/* Add Task Option */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                if (selectedStageOption) {
-                  setStageOptionsVisible(false);
-                  setActivePhaseId(selectedStageOption.id);
-                  setNewTaskName("");
-                  setAddTaskModalVisible(true);
-                }
-              }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#374151" />
-              <Text style={styles.menuItemText}>Add Task</Text>
-            </TouchableOpacity>
+
 
             {/* Edit Stage Option */}
             <TouchableOpacity
@@ -7501,40 +8638,8 @@ Project Team`;
               onPress={() => {
                 if (selectedStageOption) {
                   setStageOptionsVisible(false);
-                  const handleDeleteStage = async () => {
-                    try {
-                      await api.delete(`/phases/${selectedStageOption.id}`);
-                      showToast("Stage deleted successfully", "success");
-                      if (selectedSite?.id)
-                        fetchProjectDetails(selectedSite.id);
-                    } catch (error) {
-                      console.error("Error deleting stage:", error);
-                      Alert.alert("Error", "Failed to delete stage");
-                    }
-                  };
-
-                  if (Platform.OS === "web") {
-                    if (
-                      (window as any).confirm(
-                        `Are you sure you want to delete stage "${selectedStageOption.name}"?`
-                      )
-                    ) {
-                      handleDeleteStage();
-                    }
-                  } else {
-                    Alert.alert(
-                      "Delete Stage",
-                      `Are you sure you want to delete stage "${selectedStageOption.name}"?`,
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Delete",
-                          style: "destructive",
-                          onPress: handleDeleteStage,
-                        },
-                      ]
-                    );
-                  }
+                  setStageOptionsVisible(false);
+                  setPhaseToDelete({ id: selectedStageOption.id, name: selectedStageOption.name });
                 }
               }}
             >
@@ -7543,8 +8648,167 @@ Project Team`;
                 Delete Stage
               </Text>
             </TouchableOpacity>
+
+            {/* Add Task Option */}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (selectedStageOption) {
+                  setStageOptionsVisible(false);
+                  setActivePhaseId(selectedStageOption.id);
+
+                  // Auto-calculate next serial number/order index for tasks in this phase
+                  const phaseTasks = projectTasks.filter((t: any) => t.phase_id === selectedStageOption.id);
+                  const maxOrder = phaseTasks.length > 0
+                    ? Math.max(...phaseTasks.map((t: any) => t.order_index || 0))
+                    : 0;
+
+                  setNewTaskSerialNumber(String(maxOrder + 1));
+                  setNewTaskName("");
+                  setAddTaskModalVisible(true);
+                }
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#374151" />
+              <Text style={styles.menuItemText}>Add Subtask</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        visible={!!taskToDelete}
+        title="Delete Task"
+        message={`Are you sure you want to delete "${taskToDelete?.name}"? This action cannot be undone.`}
+        onConfirm={performDeleteTask}
+        onCancel={() => setTaskToDelete(null)}
+      />
+
+      <ConfirmationModal
+        visible={!!phaseToDelete}
+        title="Delete Stage"
+        message={`Are you sure you want to delete the stage "${phaseToDelete?.name}"? All tasks inside will be lost. This action cannot be undone.`}
+        onConfirm={performDeletePhase}
+        onCancel={() => setPhaseToDelete(null)}
+      />
+
+
+      {/* Delete Project Confirmation Modal */}
+      <Modal
+        visible={deleteProjectModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteProjectModalVisible(false)}
+      >
+        <View style={styles.miniModalOverlay}>
+          <View style={[styles.miniModalContent, { maxWidth: 500, padding: 24 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+              <View style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: '#FEE2E2',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 16,
+              }}>
+                <Ionicons name="warning" size={28} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 }}>
+                  Delete Project Permanently?
+                </Text>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>
+                  This action cannot be undone
+                </Text>
+              </View>
+            </View>
+
+            <View style={{
+              backgroundColor: '#FEF2F2',
+              borderLeftWidth: 4,
+              borderLeftColor: '#DC2626',
+              padding: 16,
+              borderRadius: 8,
+              marginBottom: 20,
+            }}>
+              <Text style={{ fontSize: 14, color: '#374151', marginBottom: 8, fontWeight: '600' }}>
+                ⚠️ Warning: This will permanently delete:
+              </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+                • Project: <Text style={{ fontWeight: '600', color: '#111827' }}>{projectToDelete?.name}</Text>
+              </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+                • All construction stages
+              </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+                • All tasks and subtasks
+              </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+                • All files and documents
+              </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginLeft: 16 }}>
+                • All project history
+              </Text>
+            </View>
+
+            <Text style={{ fontSize: 13, color: '#374151', marginBottom: 8, fontWeight: '600' }}>
+              Type <Text style={{ fontFamily: 'monospace', backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, color: '#DC2626', fontWeight: '700' }}>DELETE</Text> to confirm:
+            </Text>
+
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: deleteConfirmText.trim() === "DELETE" ? '#22C55E' : '#D1D5DB',
+                borderRadius: 8,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                fontSize: 14,
+                fontFamily: 'monospace',
+                backgroundColor: '#FFF',
+                marginBottom: 20,
+              }}
+              placeholder="Type DELETE here"
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  backgroundColor: '#F3F4F6',
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  setDeleteProjectModalVisible(false);
+                  setDeleteConfirmText("");
+                  setProjectToDelete(null);
+                }}
+              >
+                <Text style={{ color: '#374151', fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  backgroundColor: deleteConfirmText.trim() === "DELETE" ? '#DC2626' : '#FCA5A5',
+                  alignItems: 'center',
+                }}
+                onPress={handleDeleteProject}
+                disabled={deleteConfirmText.trim() !== "DELETE"}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '700' }}>Delete Forever</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Date Range Picker Modal */}
@@ -7559,7 +8823,7 @@ Project Team`;
         initialFrom={dateRange?.from}
         initialTo={dateRange?.to}
       />
-    </SafeAreaView>
+    </SafeAreaView >
   );
 };
 
@@ -8032,6 +9296,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   // Action Row Styles
   actionRow: {
@@ -8082,12 +9347,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   // Styles for Project Modal Refactor
-  // projectSection: { ... } - removed
-  // mainProjectCard: { ... } - removed
-  // projectCardIcon: { ... } - removed
-  // projectCardContent: { ... } - removed
-  // mainProjectTitle: { ... } - removed
-  // mainProjectSubtitle: { ... } - removed
+  // projectSection: {... } - removed
+  // mainProjectCard: {... } - removed
+  // projectCardIcon: {... } - removed
+  // projectCardContent: {... } - removed
+  // mainProjectTitle: {... } - removed
+  // mainProjectSubtitle: {... } - removed
 
   modalContainer: {
     flex: 1,
@@ -9459,7 +10724,7 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    minWidth: 150,
+    minWidth: '44%',
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
@@ -9506,7 +10771,7 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
-    minWidth: 200,
+    minWidth: '44%',
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
