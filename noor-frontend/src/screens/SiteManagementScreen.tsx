@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StyleSheet, StatusBar, TextInput, Modal, Alert } from 'react-native';
 import api from '../services/api';
 
@@ -34,10 +35,12 @@ const SiteManagementScreen = ({ navigation, route }: any) => {
         duration: ''
     });
 
-    useEffect(() => {
-        fetchSites();
-        fetchEmployees();
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchSites();
+            fetchEmployees();
+        }, [])
+    );
 
     const fetchSites = async () => {
         try {

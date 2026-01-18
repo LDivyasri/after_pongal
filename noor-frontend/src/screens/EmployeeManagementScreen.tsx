@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput, Alert, ActivityIndicator, Image
 } from 'react-native';
@@ -36,12 +37,14 @@ const EmployeeManagementScreen = ({ navigation, route }: any) => {
     const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        fetchEmployees();
-        if (isAssignmentMode && taskId) {
-            fetchTaskAssignments();
-        }
-    }, [taskId]);
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchEmployees();
+            if (isAssignmentMode && taskId) {
+                fetchTaskAssignments();
+            }
+        }, [taskId, isAssignmentMode])
+    );
 
     const fetchTaskAssignments = async () => {
         try {

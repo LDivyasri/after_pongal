@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StyleSheet, StatusBar, TextInput, Modal, Alert } from 'react-native';
 import api from '../services/api';
 
@@ -32,11 +33,13 @@ const TaskManagementScreen = ({ navigation }: any) => {
         startDate: '', dueDate: '', amount: ''
     });
 
-    useEffect(() => {
-        fetchTasks();
-        fetchSites();
-        fetchEmployees();
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchTasks();
+            fetchSites();
+            fetchEmployees();
+        }, [])
+    );
 
     const fetchTasks = async () => {
         try {

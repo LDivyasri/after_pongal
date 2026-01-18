@@ -110,16 +110,15 @@ exports.createSite = async (req, res) => {
             const [phaseResult] = await db.query(
                 `INSERT INTO phases (
                     site_id, name, order_num, budget, 
-                    floor_number, floor_name, serial_number
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    floor_number, floor_name
+                ) VALUES (?, ?, ?, ?, ?, ?)`,
                 [
                     siteId,
                     phaseTemplate.stageName,
                     phaseTemplate.serialNumber,
                     0, // Default budget
                     phaseTemplate.floorNumber,
-                    phaseTemplate.floorName,
-                    phaseTemplate.serialNumber
+                    phaseTemplate.floorName
                 ]
             );
 
@@ -172,7 +171,7 @@ exports.getSiteWithPhases = async (req, res) => {
             FROM phases p
             LEFT JOIN employees e ON p.assigned_to = e.id
             WHERE p.site_id = ?
-            ORDER BY p.floor_number ASC, p.serial_number ASC
+            ORDER BY p.floor_number ASC, p.order_num ASC
         `, [id]);
 
         const [tasks] = await db.query(`
@@ -214,7 +213,7 @@ exports.getPhases = async (req, res) => {
                    COALESCE((SELECT SUM(amount) FROM transactions WHERE phase_id = p.id AND TYPE = 'OUT'), 0) as used_amount
             FROM phases p
             WHERE p.site_id = ?
-            ORDER BY p.floor_number ASC, p.serial_number ASC
+            ORDER BY p.floor_number ASC, p.order_num ASC
         `, [siteId]);
         res.json({ phases });
     } catch (error) {
@@ -225,9 +224,9 @@ exports.getPhases = async (req, res) => {
 
 // Helper to re-index all phases for a site to be strictly sequential
 const reindexPhases = async (siteId) => {
-    // Keep internal order_num consistent just in case, but primary sort is serial_number
+    // Keep internal order_num consistent
     const [phases] = await db.query(
-        'SELECT id FROM phases WHERE site_id = ? ORDER BY serial_number ASC',
+        'SELECT id FROM phases WHERE site_id = ? ORDER BY order_num ASC',
         [siteId]
     );
 
@@ -240,36 +239,37 @@ const reindexPhases = async (siteId) => {
 exports.addPhase = async (req, res) => {
     try {
         const { siteId, name, orderNum, budget, floorNumber, floorName, serialNumber } = req.body;
-        const requestedOrder = parseInt(orderNum) || 1;
-        const fNumber = parseInt(floorNumber) || 0;
-        const fName = floorName || "Ground Floor";
-        const sNumber = parseInt(serialNumber);
+        // Frontend sends serialNumber as the intended order.
+        const sNumber = parseInt(serialNumber) || parseInt(orderNum);
 
         if (!sNumber) {
             return res.status(400).json({ message: 'Serial Number is required' });
         }
 
-        // Check for duplicate serial number
-        const [existing] = await db.query('SELECT id FROM phases WHERE site_id = ? AND serial_number = ?', [siteId, sNumber]);
+        const fNumber = parseInt(floorNumber) || 0;
+        const fName = floorName || "Ground Floor";
+
+        // Check for duplicate order number (serial number in UI)
+        const [existing] = await db.query('SELECT id FROM phases WHERE site_id = ? AND order_num = ?', [siteId, sNumber]);
 
         if (existing.length > 0) {
             // INSERTION LOGIC: Shift existing phases down
-            console.log(`[addPhase] Serial number ${sNumber} exists. Shifting subsequent phases...`);
+            console.log(`[addPhase] Order number ${sNumber} exists. Shifting subsequent phases...`);
 
-            // Shift all phases with serial_number >= sNumber by +1
+            // Shift all phases with order_num >= sNumber by +1
             await db.query(
-                'UPDATE phases SET serial_number = serial_number + 1 WHERE site_id = ? AND serial_number >= ?',
+                'UPDATE phases SET order_num = order_num + 1 WHERE site_id = ? AND order_num >= ?',
                 [siteId, sNumber]
             );
         }
 
         // Insert new phase
         await db.query(
-            'INSERT INTO phases (site_id, name, order_num, budget, floor_number, floor_name, serial_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [siteId, name, requestedOrder, budget || 0, fNumber, fName, sNumber]
+            'INSERT INTO phases (site_id, name, order_num, budget, floor_number, floor_name) VALUES (?, ?, ?, ?, ?, ?)',
+            [siteId, name, sNumber, budget || 0, fNumber, fName]
         );
 
-        // Re-index internal order just to keep it clean, though serial_number drives UI
+        // Re-index internal order just to keep it clean
         await reindexPhases(siteId);
 
         res.status(201).json({ message: 'Stage added successfully' });
@@ -420,10 +420,10 @@ exports.addTask = async (req, res) => {
 
         if (orderIndex) {
             const desiredOrder = parseInt(orderIndex);
-            
+
             // Check if order index exists in this phase
             const [existing] = await db.query(
-                'SELECT id FROM tasks WHERE phase_id = ? AND order_index = ?', 
+                'SELECT id FROM tasks WHERE phase_id = ? AND order_index = ?',
                 [phaseId, desiredOrder]
             );
 
@@ -445,7 +445,7 @@ exports.addTask = async (req, res) => {
                     // This implies broken ordering (e.g. all 0s). 
                     // AUTO-HEAL: Re-index everything by ID/Created to restore base order.
                     console.log(`[addTask] Detecting broken order for phase ${phaseId}. Auto-healing...`);
-                    
+
                     const [allTasks] = await db.query('SELECT id FROM tasks WHERE phase_id = ? ORDER BY order_index ASC, id ASC', [phaseId]);
                     for (let i = 0; i < allTasks.length; i++) {
                         await db.query('UPDATE tasks SET order_index = ? WHERE id = ?', [i + 1, allTasks[i].id]);
@@ -686,10 +686,11 @@ exports.getAssignedTasks = async (req, res) => {
         let query = `
             SELECT t.*, s.name as site_name, s.location as site_location, p.name as phase_name
             FROM tasks t
-            JOIN task_assignments ta ON t.id = ta.task_id
+            LEFT JOIN tasks t2 ON t.id = t2.id 
+            LEFT JOIN task_assignments ta ON t.id = ta.task_id
             LEFT JOIN sites s ON t.site_id = s.id
             LEFT JOIN phases p ON t.phase_id = p.id
-            WHERE ta.employee_id = ?
+            WHERE (ta.employee_id = ? OR p.assigned_to = ?)
         `;
 
         if (status === 'completed') {
@@ -702,7 +703,7 @@ exports.getAssignedTasks = async (req, res) => {
 
         query += ` ORDER BY t.due_date ASC, t.created_at DESC`;
 
-        const [tasks] = await db.query(query, [employeeId]);
+        const [tasks] = await db.query(query, [employeeId, employeeId]);
 
 
         res.json({ tasks });
@@ -1457,10 +1458,11 @@ exports.getNotifications = async (req, res) => {
 
         if (isAdmin) {
             // Admin sees Task Updates, Chat Updates, Stage Completions, and Submissions/Requests
-            query += ` WHERE n.type IN ('TASK_UPDATE', 'CHAT_UPDATE', 'STAGE_COMPLETED', 'TASK_SUBMITTED', 'MATERIAL_REQUEST', 'MATERIAL_UPDATE')`;
+            // Removed MATERIAL_UPDATE as that is for Employee (Approval status)
+            query += ` WHERE n.type IN ('TASK_UPDATE', 'CHAT_UPDATE', 'STAGE_COMPLETED', 'TASK_SUBMITTED', 'MATERIAL_REQUEST', 'MATERIAL_RECEIVED')`;
         } else {
             // Employee sees Assignments where they are the 'employee_id' (Recipient override)
-            query += ` WHERE n.employee_id = ? AND n.type IN ('ASSIGNMENT', 'TASK_APPROVED', 'TASK_REJECTED')`;
+            query += ` WHERE n.employee_id = ? AND n.type IN ('ASSIGNMENT', 'TASK_APPROVED', 'TASK_REJECTED', 'MATERIAL_UPDATE')`;
             params.push(userId);
         }
 
@@ -1473,10 +1475,11 @@ exports.getNotifications = async (req, res) => {
         let countParams = [];
 
         if (isAdmin) {
-            countQuery += ` AND type IN ('TASK_UPDATE', 'CHAT_UPDATE', 'STAGE_COMPLETED', 'TASK_SUBMITTED', 'MATERIAL_REQUEST', 'MATERIAL_UPDATE')`;
+            countQuery += ` AND type IN ('TASK_UPDATE', 'CHAT_UPDATE', 'STAGE_COMPLETED', 'TASK_SUBMITTED', 'MATERIAL_REQUEST', 'MATERIAL_RECEIVED')`;
         } else {
-            countQuery += ` AND employee_id = ? AND type IN ('ASSIGNMENT', 'TASK_APPROVED', 'TASK_REJECTED')`;
+            countQuery += ` AND employee_id = ? AND type IN ('ASSIGNMENT', 'TASK_APPROVED', 'TASK_REJECTED', 'MATERIAL_UPDATE')`;
             countParams.push(userId);
+
         }
 
         const [countRow] = await db.query(countQuery, countParams);
