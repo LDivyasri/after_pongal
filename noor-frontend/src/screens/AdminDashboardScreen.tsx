@@ -849,13 +849,14 @@ const AdminDashboardScreen = () => {
   const [customFloorInputVisible, setCustomFloorInputVisible] = useState(false);
   const [customFloorInput, setCustomFloorInput] = useState("");
 
-  const INITIAL_FLOORS = ["Basement", "Ground Floor", "First Floor", "Second Floor", "Roof / Terrace"];
+  const INITIAL_FLOORS = ["Basement", "Ground Floor", "First Floor", "Second Floor", "Roof / Terrace", "Other"];
   const INITIAL_FLOOR_MAP: Record<string, number> = {
     "Basement": -1,
     "Ground Floor": 0,
     "First Floor": 1,
     "Second Floor": 2,
-    "Roof / Terrace": 999
+    "Roof / Terrace": 3,
+    "Other": 99
   };
 
   // Serial Number State
@@ -4570,11 +4571,11 @@ Project Team`;
                 ) : (
                   // Group Phases by Floor
                   <View>
-                    {[...availableFloors, "Other"].map((floorName) => {
+                    {availableFloors.map((floorName) => {
                       const floorPhases = projectPhases.filter((p) => {
                         const pFloor = p.floor_name || p.floor || "Ground Floor";
                         if (floorName === "Other")
-                          return !availableFloors.includes(pFloor);
+                          return pFloor === "Other" || !availableFloors.includes(pFloor);
                         return pFloor === floorName;
                       });
 
