@@ -27,7 +27,7 @@ import ConfirmationModal from "../components/ConfirmationModal";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
-import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { useNavigation, useIsFocused, useFocusEffect } from "@react-navigation/native";
 import StageProgressScreen from "./StageProgressScreen";
 import ProjectTransactions from "../components/ProjectTransactions";
 import * as DocumentPicker from "expo-document-picker";
@@ -1587,11 +1587,14 @@ const AdminDashboardScreen = () => {
   const isFocused = useIsFocused();
 
   // Fetch Sites on Mount or when Modal opens
-  useEffect(() => {
-    fetchSites();
-    fetchEmployees();
-    fetchDashboardStats();
-  }, []);
+  // Fetch Sites on Focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchSites();
+      fetchEmployees();
+      fetchDashboardStats();
+    }, [])
+  );
 
   // Auto-refresh project details when screen gains focus (e.g. returning from assignment)
   useEffect(() => {
@@ -1599,6 +1602,16 @@ const AdminDashboardScreen = () => {
       if (selectedSite?.id) fetchProjectDetails(selectedSite.id);
     }
   }, [isFocused]);
+
+  // Refresh Dashboard whenever Modals close (Project, Task, SitePicker)
+  // This ensures badges (Wait Approval, Materials) and stats stay in sync after actions
+  useEffect(() => {
+    if (!projectModalVisible && !taskModalVisible && !sitePickerVisible) {
+      fetchSites();
+      fetchDashboardStats();
+      fetchApprovals(); // Also refresh approvals list in case task was approved
+    }
+  }, [projectModalVisible, taskModalVisible, sitePickerVisible]);
 
   const fetchEmployees = async () => {
     try {
@@ -4239,6 +4252,24 @@ Project Team`;
                     </View>
                     <Text style={[styles.metricValue, { marginTop: 8 }]}>
                       {completedTasksCount}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* 3. THIRD ROW: Overall Report */}
+                <View style={styles.metricsRow}>
+                  <TouchableOpacity
+                    style={[styles.metricCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD', borderWidth: 1 }]}
+                    onPress={() => navigation.navigate("OverallReport")}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <View style={{ padding: 8, backgroundColor: '#fff', borderRadius: 8 }}>
+                        <Ionicons name="bar-chart-outline" size={24} color="#0284C7" />
+                      </View>
+                      <Text style={[styles.metricLabel, { marginBottom: 0, color: '#0369A1' }]}>Overall Report</Text>
+                    </View>
+                    <Text style={[styles.metricSubText, { color: '#0C4A6E' }]}>
+                      View comprehensive company status, financials, and project summaries.
                     </Text>
                   </TouchableOpacity>
                 </View>

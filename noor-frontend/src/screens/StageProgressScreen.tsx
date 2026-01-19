@@ -582,6 +582,9 @@ const StageProgressScreen = ({ route, navigation }: any) => {
                     setSubTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'waiting_for_approval', progress: 100 } : t));
 
                     Alert.alert("Success", "Task submitted for admin approval");
+
+                    // Refresh data to show system message
+                    fetchData();
                 } catch (error) {
                     console.error('Error completing task:', error);
                     Alert.alert("Error", "Failed to submit task for approval");
@@ -597,10 +600,14 @@ const StageProgressScreen = ({ route, navigation }: any) => {
             async () => {
                 try {
                     await api.put(`/tasks/${task.id}/approve`);
+                    // Update UI Optimistically for speed
                     setSubTasks((prev: any[]) => prev.map(t => t.id === task.id ? { ...t, status: 'Completed' } : t));
-                    // Also update main phase/task status for UI header
                     setPhase((prev: any) => ({ ...prev, status: 'Completed' }));
+
                     Alert.alert("Success", "Task approved and marked as completed.");
+
+                    // Refresh Data to show the new "System Message" in chat
+                    fetchData();
                 } catch (error) {
                     console.error('Error approving task:', error);
                     Alert.alert("Error", "Failed to approve task");
