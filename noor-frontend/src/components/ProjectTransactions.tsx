@@ -81,6 +81,7 @@ const ProjectTransactions: React.FC<ProjectTransactionsProps> = ({ siteId, phase
 
     const submitTransaction = async () => {
         // Legacy wrapper for the Warning Modal Proceed button which respects state
+        // Pass force=true to bypass the budget check since user confirmed "Proceed"
         await submitTransactionWithArgs({
             type,
             amount: Number(amount),
@@ -88,7 +89,7 @@ const ProjectTransactions: React.FC<ProjectTransactionsProps> = ({ siteId, phase
             phase_id: selectedPhaseId,
             date,
             payment_method: type === 'IN' ? paymentMethod : null
-        });
+        }, true);
     };
 
     const handleAddTransaction = async (overridePhaseId?: number) => {
@@ -108,14 +109,6 @@ const ProjectTransactions: React.FC<ProjectTransactionsProps> = ({ siteId, phase
             return;
         }
 
-        // Set the state just in case, for submitTransaction to pick up if it relies on state 
-        // (Note: submitTransaction reads from state, so we must set it. 
-        // Since setState is async, we should probably modify submitTransaction to take args, 
-        // but for now we will assume submitTransaction reads the LATEST state if we trigger it or use args.)
-        // ACTUALLY: submitTransaction uses `selectedPhaseId` from closure/state. 
-        // We need to update state and then call submit, OR refactor submitTransaction.
-        // Let's Refactor submitTransaction slightly to accept optional args.
-
         await submitTransactionWithArgs({
             type,
             amount: Number(amount),
@@ -126,23 +119,20 @@ const ProjectTransactions: React.FC<ProjectTransactionsProps> = ({ siteId, phase
         });
     };
 
-    const submitTransactionWithArgs = async (data: any) => {
+    const submitTransactionWithArgs = async (data: any, force: boolean = false) => {
         try {
             // Budget Check logic moved here for safety if phase is present
-            if (data.type === 'OUT' && data.phase_id) {
+            if (!force && data.type === 'OUT' && data.phase_id) {
+                console.log('[ProjectTransactions] Checking budget for phase:', data.phase_id);
                 const phase = phases.find(p => p.id == data.phase_id);
                 const budget = Number(phase?.budget) || 0;
                 const used = phaseUsage[data.phase_id] || 0;
                 const newTotal = used + Number(data.amount);
 
                 // If budget check fails, we stop (unless user confirms logic is added differently)
-                // For simplicity, reusing warning logic is tricky with args. 
-                // We'll skip complex warning for the inline "safe" version or implement a quick check.
                 if (budget > 0 && newTotal > budget) {
+                    console.log('[ProjectTransactions] Budget exceeded. Showing modal.');
                     // We need to show modal. But modal uses state. 
-                    // We can set state variables and show modal, effectively "pausing" this function.
-                    // But we can't easily resume with args.
-                    // IMPORTANT: The existing warning logic relies on state.
                     // We will set the state values so the warning modal can pick them up if needed.
                     setSelectedPhaseId(data.phase_id);
 
@@ -156,10 +146,12 @@ const ProjectTransactions: React.FC<ProjectTransactionsProps> = ({ siteId, phase
                 }
             }
 
+            console.log('[ProjectTransactions] Proceeding with transaction submission (force=' + force + ')');
             await api.post(`/sites/${siteId}/transactions`, data);
 
             Alert.alert('Success', 'Transaction added successfully');
             setAddModalVisible(false); // Close global modal if open
+            setWarningModalVisible(false); // Ensure warning modal is closed
             resetForm();
             fetchTransactions();
         } catch (error: any) {
